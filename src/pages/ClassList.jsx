@@ -3,7 +3,12 @@ import { Link } from 'react-router-dom';
 import { getClasses, getStudentsByClass, addStudent, addClass, updateClass } from '../lib/store.js';
 
 const DAYS = ['월', '화', '수', '목', '금', '토', '일'];
+const JS_TO_KR = ['일', '월', '화', '수', '목', '금', '토']; // Date.getDay() 0=일
 const CLASS_EMPTY = { class_name: '', days_of_week: '', instructor: '' };
+
+function getTodayDay() {
+  return JS_TO_KR[new Date().getDay()];
+}
 
 function DayToggle({ value, onChange }) {
   const selected = value ? value.split(',').filter(Boolean) : [];
@@ -11,7 +16,6 @@ function DayToggle({ value, onChange }) {
     const next = selected.includes(day)
       ? selected.filter(d => d !== day)
       : [...selected, day];
-    // 요일 순서 유지 (월~일)
     onChange(DAYS.filter(d => next.includes(d)).join(','));
   }
   return (
@@ -38,33 +42,22 @@ function ClassForm({ initial, onSave, onCancel, saving }) {
     <form onSubmit={e => { e.preventDefault(); onSave(form); }}
       className="bg-white border border-indigo-100 rounded-xl p-5 mb-6 shadow-sm space-y-4">
       <h2 className="font-semibold text-gray-800">{isEdit ? '반 편집' : '새 반 추가'}</h2>
-
       <div>
         <label className="block text-xs font-medium text-gray-600 mb-1">반 이름</label>
-        <input
-          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-          value={form.class_name}
-          onChange={e => setForm(f => ({ ...f, class_name: e.target.value }))}
-          placeholder="예: 중2-A반"
-          required
-        />
+        <input className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          value={form.class_name} onChange={e => setForm(f => ({ ...f, class_name: e.target.value }))}
+          placeholder="예: 중2-A반" required />
       </div>
-
       <div>
         <label className="block text-xs font-medium text-gray-600 mb-2">수업 요일</label>
         <DayToggle value={form.days_of_week} onChange={v => setForm(f => ({ ...f, days_of_week: v }))} />
       </div>
-
       <div>
         <label className="block text-xs font-medium text-gray-600 mb-1">담당 강사</label>
-        <input
-          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-          value={form.instructor}
-          onChange={e => setForm(f => ({ ...f, instructor: e.target.value }))}
-          placeholder="예: 김수학"
-        />
+        <input className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          value={form.instructor} onChange={e => setForm(f => ({ ...f, instructor: e.target.value }))}
+          placeholder="예: 김수학" />
       </div>
-
       <div className="flex gap-2 pt-1">
         <button type="submit" disabled={saving}
           className="px-5 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 disabled:opacity-50 transition-colors">
@@ -80,12 +73,17 @@ function ClassForm({ initial, onSave, onCancel, saving }) {
 }
 
 export default function ClassList() {
-  const [classData, setClassData] = useState([]); // [{cls, students}]
+  const [classData, setClassData] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [formMode, setFormMode] = useState(null); // null | 'add_class' | 'edit_class' | 'add_student'
+  const [formMode, setFormMode] = useState(null);
   const [editTarget, setEditTarget] = useState(null);
   const [studentForm, setStudentForm] = useState({ name: '', class_name: '' });
   const [saving, setSaving] = useState(false);
+
+  // 검색 · 필터 상태
+  const [search, setSearch] = useState('');
+  const [filterDays, setFilterDays] = useState([]); // 선택된 요일들
+  const [todayOnly, setTodayOnly] = useState(false);
 
   async function refresh() {
     setLoading(true);
@@ -101,6 +99,41 @@ export default function ClassList() {
   }
   useEffect(() => { refresh(); }, []);
 
+  // ── 필터링 로직 ────────────────────────────────────────────────────────────
+  const today = getTodayDay();
+
+  const filtered = classData.filter(({ cls, students }) => {
+    // 오늘 수업만 보기
+    if (todayOnly) {
+      const days = cls.days_of_week?.split(',').filter(Boolean) ?? [];
+      if (!days.includes(today)) return false;
+    }
+
+    // 요일 필터 (todayOnly OFF일 때만)
+    if (!todayOnly && filterDays.length > 0) {
+      const days = cls.days_of_week?.split(',').filter(Boolean) ?? [];
+      if (!filterDays.some(d => days.includes(d))) return false;
+    }
+
+    // 텍스트 검색
+    if (search.trim()) {
+      const q = search.trim().toLowerCase();
+      const matchClass      = cls.class_name.toLowerCase().includes(q);
+      const matchInstructor = cls.instructor?.toLowerCase().includes(q) ?? false;
+      const matchStudent    = students.some(s => s.name.toLowerCase().includes(q));
+      if (!matchClass && !matchInstructor && !matchStudent) return false;
+    }
+
+    return true;
+  });
+
+  function toggleFilterDay(day) {
+    setFilterDays(prev =>
+      prev.includes(day) ? prev.filter(d => d !== day) : [...prev, day]
+    );
+  }
+
+  // ── 폼 핸들러 ──────────────────────────────────────────────────────────────
   async function handleSaveClass(form) {
     setSaving(true);
     try {
@@ -139,21 +172,91 @@ export default function ClassList() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      {/* 타이틀 + 액션 버튼 */}
+      <div className="flex items-center justify-between mb-5">
         <h1 className="text-2xl font-bold text-gray-900">반 목록</h1>
         <div className="flex gap-2">
-          <button
-            onClick={() => { setFormMode('add_class'); setEditTarget(null); }}
-            className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors"
-          >
+          <button onClick={() => { setFormMode('add_class'); setEditTarget(null); }}
+            className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors">
             + 반 추가
           </button>
-          <button
-            onClick={openAddStudent}
-            className="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors"
-          >
+          <button onClick={openAddStudent}
+            className="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors">
             + 학생 추가
           </button>
+        </div>
+      </div>
+
+      {/* ── 검색 · 필터 영역 ── */}
+      <div className="bg-white border border-gray-200 rounded-xl p-4 mb-5 space-y-3">
+        {/* 검색박스 + 토글 */}
+        <div className="flex items-center gap-3">
+          <div className="relative flex-1">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">🔍</span>
+            <input
+              type="text"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="학생명, 반명, 강사명 검색…"
+              className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+            {search && (
+              <button onClick={() => setSearch('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xs">
+                ✕
+              </button>
+            )}
+          </div>
+
+          {/* 오늘 수업만 보기 토글 */}
+          <button
+            type="button"
+            onClick={() => setTodayOnly(v => !v)}
+            className="flex items-center gap-2 flex-shrink-0"
+          >
+            <div className={`relative w-9 h-5 rounded-full transition-colors duration-200 ${todayOnly ? 'bg-indigo-600' : 'bg-gray-300'}`}>
+              <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all duration-200 ${todayOnly ? 'left-4' : 'left-0.5'}`} />
+            </div>
+            <span className={`text-xs font-medium whitespace-nowrap transition-colors ${todayOnly ? 'text-indigo-600' : 'text-gray-500'}`}>
+              {todayOnly ? `오늘(${today}) 수업만 보기` : '전체 반 보기'}
+            </span>
+          </button>
+        </div>
+
+        {/* 요일 필터 버튼 */}
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-gray-400 flex-shrink-0">요일</span>
+          <div className="flex gap-1.5">
+            {DAYS.map(d => {
+              const active = filterDays.includes(d);
+              const isToday = d === today;
+              return (
+                <button
+                  key={d}
+                  type="button"
+                  disabled={todayOnly}
+                  onClick={() => toggleFilterDay(d)}
+                  className={`w-8 h-8 rounded-lg text-sm font-medium border transition-all
+                    ${todayOnly
+                      ? 'bg-gray-100 text-gray-300 border-gray-200 cursor-not-allowed'
+                      : active
+                        ? 'bg-indigo-600 text-white border-indigo-600'
+                        : isToday
+                          ? 'bg-indigo-50 text-indigo-500 border-indigo-200 hover:bg-indigo-100'
+                          : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'
+                    }`}
+                >
+                  {d}
+                </button>
+              );
+            })}
+          </div>
+          {filterDays.length > 0 && !todayOnly && (
+            <button onClick={() => setFilterDays([])}
+              className="text-xs text-gray-400 hover:text-gray-600 ml-1">
+              초기화
+            </button>
+          )}
         </div>
       </div>
 
@@ -176,21 +279,14 @@ export default function ClassList() {
           <div className="flex gap-3 flex-wrap items-end">
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">학생 이름</label>
-              <input
-                className="border border-gray-300 rounded-lg px-3 py-2 text-sm w-32 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                value={studentForm.name}
-                onChange={e => setStudentForm(f => ({ ...f, name: e.target.value }))}
-                placeholder="홍길동" required
-              />
+              <input className="border border-gray-300 rounded-lg px-3 py-2 text-sm w-32 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                value={studentForm.name} onChange={e => setStudentForm(f => ({ ...f, name: e.target.value }))}
+                placeholder="홍길동" required />
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">반</label>
-              <select
-                className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                value={studentForm.class_name}
-                onChange={e => setStudentForm(f => ({ ...f, class_name: e.target.value }))}
-                required
-              >
+              <select className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                value={studentForm.class_name} onChange={e => setStudentForm(f => ({ ...f, class_name: e.target.value }))} required>
                 <option value="">반 선택</option>
                 {classData.map(({ cls }) => (
                   <option key={cls.id} value={cls.class_name}>{cls.class_name}</option>
@@ -209,15 +305,18 @@ export default function ClassList() {
         </form>
       )}
 
-      {classData.length === 0 ? (
+      {/* 반 카드 그리드 */}
+      {filtered.length === 0 ? (
         <div className="text-center py-16 text-gray-400">
-          <p className="text-4xl mb-3">📚</p>
-          <p className="text-sm">'반 추가'로 반을 먼저 만들어보세요.</p>
+          {classData.length === 0
+            ? <><p className="text-4xl mb-3">📚</p><p className="text-sm">'반 추가'로 반을 먼저 만들어보세요.</p></>
+            : <><p className="text-3xl mb-3">🔍</p><p className="text-sm">검색 결과가 없습니다.</p></>
+          }
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {classData.map(({ cls, students }) => {
-            const days = cls.days_of_week ? cls.days_of_week.split(',').filter(Boolean) : [];
+          {filtered.map(({ cls, students }) => {
+            const days = cls.days_of_week?.split(',').filter(Boolean) ?? [];
             return (
               <div key={cls.id}
                 className="bg-white border border-gray-200 rounded-xl hover:border-indigo-300 hover:shadow-sm transition-all group flex flex-col">
@@ -228,7 +327,6 @@ export default function ClassList() {
                     </h2>
                     <span className="text-xl">🏫</span>
                   </div>
-
                   <div className="space-y-1.5 mb-3">
                     {cls.instructor && (
                       <p className="text-xs text-gray-500 flex items-center gap-1.5">
@@ -241,29 +339,26 @@ export default function ClassList() {
                         <span className="text-xs text-gray-400">요일</span>
                         <div className="flex gap-1">
                           {days.map(d => (
-                            <span key={d} className="text-xs bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded font-medium">{d}</span>
+                            <span key={d}
+                              className={`text-xs px-1.5 py-0.5 rounded font-medium ${d === today ? 'bg-indigo-100 text-indigo-700' : 'bg-blue-50 text-blue-600'}`}>
+                              {d}
+                            </span>
                           ))}
                         </div>
                       </div>
                     )}
                     <p className="text-xs text-gray-400">학생 {students.length}명</p>
                   </div>
-
                   <div className="flex gap-1 flex-wrap">
                     {students.slice(0, 5).map(s => (
                       <span key={s.id} className="text-xs bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-full">{s.name}</span>
                     ))}
-                    {students.length > 5 && (
-                      <span className="text-xs text-gray-400">+{students.length - 5}명</span>
-                    )}
+                    {students.length > 5 && <span className="text-xs text-gray-400">+{students.length - 5}명</span>}
                   </div>
                 </Link>
-
                 <div className="px-5 py-2.5 border-t border-gray-100 flex justify-end">
-                  <button
-                    onClick={() => openEditClass(cls)}
-                    className="text-xs text-gray-400 hover:text-indigo-600 font-medium transition-colors"
-                  >
+                  <button onClick={() => openEditClass(cls)}
+                    className="text-xs text-gray-400 hover:text-indigo-600 font-medium transition-colors">
                     반 정보 편집
                   </button>
                 </div>
