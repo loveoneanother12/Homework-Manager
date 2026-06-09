@@ -8,6 +8,7 @@ import { calcFirst, calcSecond, validate1st, validate2nd, pct } from '../lib/kpi
 import { generateComment, shouldFlagClinic } from '../lib/comments.js';
 import { today } from '../lib/dateUtils.js';
 import DateSelector from '../components/DateSelector.jsx';
+import { SUBJECTS } from './UnitManagement.jsx';
 
 const PROCESS_OPTIONS = [
   { value: 'good',       label: '우수', cls: 'bg-green-100 text-green-800 border-green-300' },
@@ -130,9 +131,28 @@ function RecordCard({ record, units, onAddSecond, onDelete }) {
 // ── 1차 채점 폼 ──────────────────────────────────────────────────────────────
 
 function FirstRoundForm({ units, onSave, onCancel }) {
-  const [f, setF] = useState({ unit_id: units[0]?.id ?? '', total_count: '', not_attempted: 0, gave_up: 0, wrong_attempted: 0, process_score: 'good' });
+  // 과목별 단원 분류
+  const bySubject = Object.fromEntries(
+    SUBJECTS.map(s => [s, units.filter(u => u.subject === s)])
+  );
+  const noSubject = units.filter(u => !u.subject);
+
+  const defaultSubject = units.find(u => u.subject)?.subject ?? '';
+  const [selectedSubject, setSelectedSubject] = useState(defaultSubject);
+  const subjectUnits = selectedSubject ? (bySubject[selectedSubject] ?? []) : noSubject;
+
+  const [f, setF] = useState({
+    unit_id: subjectUnits[0]?.id ?? '',
+    total_count: '', not_attempted: 0, gave_up: 0, wrong_attempted: 0, process_score: 'good',
+  });
   const [errors, setErrors] = useState([]);
   const [saving, setSaving] = useState(false);
+
+  function handleSubjectSelect(subj) {
+    setSelectedSubject(subj);
+    const list = bySubject[subj] ?? [];
+    setF(prev => ({ ...prev, unit_id: list[0]?.id ?? '' }));
+  }
 
   const filled = f.total_count !== '' && Number(f.total_count) >= 0 && f.unit_id;
   const kpi1 = filled ? calcFirst({ total_count: Number(f.total_count), not_attempted: Number(f.not_attempted), gave_up: Number(f.gave_up), wrong_attempted: Number(f.wrong_attempted) }) : null;
@@ -153,13 +173,38 @@ function FirstRoundForm({ units, onSave, onCancel }) {
   return (
     <div className="bg-white border border-indigo-200 rounded-xl p-5 space-y-5">
       <h2 className="font-semibold text-gray-800">새 1차 채점</h2>
+
+      {/* 1단계: 과목 선택 */}
       <div>
-        <label className="block text-xs font-medium text-gray-600 mb-1">단원</label>
-        <select className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-          value={f.unit_id} onChange={e => setF(p => ({ ...p, unit_id: e.target.value }))}>
-          {units.map(u => <option key={u.id} value={u.id}>{u.unit_name}</option>)}
-        </select>
+        <label className="block text-xs font-medium text-gray-600 mb-2">과목</label>
+        <div className="flex gap-2 flex-wrap">
+          {SUBJECTS.map(s => (
+            <button key={s} type="button" onClick={() => handleSubjectSelect(s)}
+              className={`px-3 py-1.5 rounded-lg border text-sm font-medium transition-all ${selectedSubject === s ? 'bg-indigo-50 border-indigo-400 text-indigo-800' : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'}`}>
+              {s}
+            </button>
+          ))}
+        </div>
       </div>
+
+      {/* 2단계: 단원 선택 */}
+      {selectedSubject && (
+        <div>
+          <label className="block text-xs font-medium text-gray-600 mb-1">단원</label>
+          <select className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            value={f.unit_id} onChange={e => setF(p => ({ ...p, unit_id: e.target.value }))}>
+            {subjectUnits.length === 0
+              ? <option value="">— 등록된 단원 없음 —</option>
+              : subjectUnits.map(u => <option key={u.id} value={u.id}>{u.unit_name}</option>)
+            }
+          </select>
+        </div>
+      )}
+
+      {!selectedSubject && (
+        <p className="text-xs text-gray-400">위에서 과목을 선택하면 단원 목록이 표시됩니다.</p>
+      )}
+
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         <NumInput label="전체 문항 수"     value={f.total_count}    onChange={v => setF(p => ({ ...p, total_count: v }))} />
         <NumInput label="안 푼 문항 수"     value={f.not_attempted}  onChange={v => setF(p => ({ ...p, not_attempted: v }))} />

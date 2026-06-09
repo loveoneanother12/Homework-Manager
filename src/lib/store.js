@@ -63,7 +63,8 @@ export async function deleteStudent(id) {
 // ── 단원 프리셋 ───────────────────────────────────────────────────────────────
 
 export async function getUnits() {
-  const { data, error } = await supabase.from('hw_unit_presets').select('*').order('created_at');
+  const { data, error } = await supabase.from('hw_unit_presets').select('*')
+    .order('sort_order').order('created_at');
   if (error) throw error;
   return data ?? [];
 }
