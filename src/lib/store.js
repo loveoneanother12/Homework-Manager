@@ -23,6 +23,36 @@ function withKpi(record) {
   return { ...record, _kpi1: kpi1, _kpi2: kpi2 };
 }
 
+// ── 반 ───────────────────────────────────────────────────────────────────────
+
+export async function getClasses() {
+  const { data, error } = await supabase.from('hw_classes').select('*').order('created_at');
+  if (error) throw error;
+  return data ?? [];
+}
+
+export async function addClass(data) {
+  const { data: c, error } = await supabase.from('hw_classes').insert(data).select().single();
+  if (error) throw error;
+  return c;
+}
+
+export async function updateClass(id, updates) {
+  if (updates.class_name) {
+    const { data: existing } = await supabase.from('hw_classes').select('class_name').eq('id', id).single();
+    if (existing && existing.class_name !== updates.class_name) {
+      await supabase.from('hw_students').update({ class_name: updates.class_name }).eq('class_name', existing.class_name);
+    }
+  }
+  const { error } = await supabase.from('hw_classes').update(updates).eq('id', id);
+  if (error) throw error;
+}
+
+export async function deleteClass(id) {
+  const { error } = await supabase.from('hw_classes').delete().eq('id', id);
+  if (error) throw error;
+}
+
 // ── 학생 ─────────────────────────────────────────────────────────────────────
 
 export async function getStudents() {
@@ -41,12 +71,6 @@ export async function getStudentsByClass(className) {
 export async function getStudent(id) {
   const { data } = await supabase.from('hw_students').select('*').eq('id', id).single();
   return data ?? null;
-}
-
-export async function getClasses() {
-  const { data, error } = await supabase.from('hw_students').select('class_name').order('class_name');
-  if (error) throw error;
-  return [...new Set((data ?? []).map(s => s.class_name))];
 }
 
 export async function addStudent(data) {
