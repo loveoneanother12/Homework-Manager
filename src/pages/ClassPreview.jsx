@@ -1,9 +1,11 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 import GradingCard, { CARD_W, CARD_H } from '../components/GradingCard.jsx';
 import { getStudentsByClass, getRecordsByClass, getUnits, updateRecordComment } from '../lib/store.js';
+import { today } from '../lib/dateUtils.js';
+import DateSelector from '../components/DateSelector.jsx';
 
 const A4_W = 210, A4_H = 297, MARGIN = 5;
 const CARD_MM_W = (A4_W - MARGIN * 2) / 2;
@@ -13,6 +15,9 @@ export default function ClassPreview() {
   const { className } = useParams();
   const navigate = useNavigate();
   const decoded = decodeURIComponent(className);
+
+  const [searchParams, setSearchParams] = useSearchParams();
+  const sessionDate = searchParams.get('date') ?? today();
 
   const [entries, setEntries] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -24,7 +29,7 @@ export default function ClassPreview() {
     try {
       const [students, records, units] = await Promise.all([
         getStudentsByClass(decoded),
-        getRecordsByClass(decoded),
+        getRecordsByClass(decoded, sessionDate),
         getUnits(),
       ]);
       const recordById = Object.fromEntries(records.map(r => [r.student_id, r]));
@@ -37,7 +42,7 @@ export default function ClassPreview() {
     } finally {
       setLoading(false);
     }
-  }, [decoded]);
+  }, [decoded, sessionDate]);
 
   useEffect(() => { refresh(); }, [refresh]);
 
@@ -67,7 +72,7 @@ export default function ClassPreview() {
         const canvas = await html2canvas(el, { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false });
         pdf.addImage(canvas.toDataURL('image/png'), 'PNG', x + 0.5, y + 0.5, CARD_MM_W - 1, CARD_MM_H - 1);
       }
-      pdf.save(`${decoded}_평가서_${new Date().toISOString().slice(0, 10)}.pdf`);
+      pdf.save(`${decoded}_평가서_${sessionDate}.pdf`);
     } catch (err) {
       console.error(err);
       alert('PDF 생성 중 오류가 발생했습니다.');
@@ -88,6 +93,11 @@ export default function ClassPreview() {
         <h1 className="text-xl font-bold text-gray-900">{decoded} — 평가서 미리보기</h1>
       </div>
 
+      {/* 날짜 선택 */}
+      <div className="mb-5 flex items-center gap-3 flex-wrap">
+        <DateSelector date={sessionDate} onChange={d => setSearchParams({ date: d })} />
+      </div>
+
       <div className="flex items-center justify-between mb-4">
         <div className="text-sm text-gray-500">채점 완료 {withRecords.length}명 · 미채점 {withoutRecords.length}명</div>
         <button onClick={handleExportPDF} disabled={exporting || !withRecords.length}
@@ -98,12 +108,12 @@ export default function ClassPreview() {
 
       {withoutRecords.length > 0 && (
         <div className="mb-4 bg-amber-50 border border-amber-200 rounded-lg px-4 py-2 text-sm text-amber-700">
-          채점 기록 없음: {withoutRecords.map(e => e.student.name).join(', ')}
+          이 날짜 채점 없음: {withoutRecords.map(e => e.student.name).join(', ')}
         </div>
       )}
 
       {withRecords.length === 0 ? (
-        <div className="text-center py-16 text-gray-400 text-sm">아직 채점 기록이 없습니다.</div>
+        <div className="text-center py-16 text-gray-400 text-sm">이 날짜의 채점 기록이 없습니다.</div>
       ) : (
         <div className="flex flex-wrap gap-6">
           {withRecords.map(entry => (

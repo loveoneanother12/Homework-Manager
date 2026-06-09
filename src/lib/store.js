@@ -92,9 +92,11 @@ export async function deleteUnit(id) {
 
 // ── 채점 기록 ─────────────────────────────────────────────────────────────────
 
-export async function getRecordsByStudent(studentId) {
-  const { data, error } = await supabase.from('hw_homework_records').select('*')
+export async function getRecordsByStudent(studentId, sessionDate = null) {
+  let q = supabase.from('hw_homework_records').select('*')
     .eq('student_id', studentId).order('created_at', { ascending: false });
+  if (sessionDate) q = q.eq('session_date', sessionDate);
+  const { data, error } = await q;
   if (error) throw error;
   return (data ?? []).map(withKpi);
 }
@@ -106,18 +108,20 @@ export async function getLatestRecord(studentId) {
 }
 
 // 반 전체 학생의 레코드를 한 번에 가져옴 (N+1 방지)
-export async function getRecordsByStudentIds(ids) {
+export async function getRecordsByStudentIds(ids, sessionDate = null) {
   if (!ids.length) return [];
-  const { data, error } = await supabase.from('hw_homework_records').select('*')
+  let q = supabase.from('hw_homework_records').select('*')
     .in('student_id', ids).order('created_at', { ascending: false });
+  if (sessionDate) q = q.eq('session_date', sessionDate);
+  const { data, error } = await q;
   if (error) throw error;
   return (data ?? []).map(withKpi);
 }
 
-export async function getRecordsByClass(className) {
+export async function getRecordsByClass(className, sessionDate = null) {
   const students = await getStudentsByClass(className);
   if (!students.length) return [];
-  const records = await getRecordsByStudentIds(students.map(s => s.id));
+  const records = await getRecordsByStudentIds(students.map(s => s.id), sessionDate);
   // student_id별 최신 레코드만 (PDF·미리보기용)
   const byStudent = {};
   for (const r of records) {

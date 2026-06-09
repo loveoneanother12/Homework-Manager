@@ -1,11 +1,13 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   getStudent, getUnits, getRecordsByStudent,
-  addRecord, updateRecord, deleteRecord, getSentences, getUnit,
+  addRecord, updateRecord, deleteRecord, getSentences,
 } from '../lib/store.js';
 import { calcFirst, calcSecond, validate1st, validate2nd, pct } from '../lib/kpi.js';
 import { generateComment, shouldFlagClinic } from '../lib/comments.js';
+import { today } from '../lib/dateUtils.js';
+import DateSelector from '../components/DateSelector.jsx';
 
 const PROCESS_OPTIONS = [
   { value: 'good',       label: '우수', cls: 'bg-green-100 text-green-800 border-green-300' },
@@ -93,7 +95,6 @@ function RecordCard({ record, units, onAddSecond, onDelete }) {
             {record.clinic_flag && (
               <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full font-medium">클리닉</span>
             )}
-            <span className="text-xs text-gray-400 ml-auto">{record.created_at?.slice(0, 10)}</span>
           </div>
           {kpi1 && (
             <div className="mt-2 flex gap-4 text-xs text-gray-600 flex-wrap">
@@ -218,7 +219,6 @@ function SecondRoundForm({ refRecord, units, onSave, onCancel }) {
           <span>정답률: <b>{kpi1 ? pct(kpi1.accuracy_rate) : '—'}</b></span>
           <span className="text-indigo-700 font-semibold">1차 오답: <b>{firstWrongs}문항</b></span>
         </div>
-        <p className="text-xs text-gray-400 mt-1">{refRecord.created_at?.slice(0, 10)} 저장</p>
       </div>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         <NumInput label={`오답노트 작성 수 (최대 ${firstWrongs})`} value={s.retry_total}  onChange={v => setS(p => ({ ...p, retry_total: v }))} />
@@ -248,6 +248,8 @@ function SecondRoundForm({ refRecord, units, onSave, onCancel }) {
 export default function GradingInput() {
   const { studentId } = useParams();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const sessionDate = searchParams.get('date') ?? today();
 
   const [student, setStudent] = useState(null);
   const [units, setUnits] = useState([]);
@@ -261,7 +263,7 @@ export default function GradingInput() {
       const [s, u, r] = await Promise.all([
         getStudent(studentId),
         getUnits(),
-        getRecordsByStudent(studentId),
+        getRecordsByStudent(studentId, sessionDate),
       ]);
       setStudent(s);
       setUnits(u);
@@ -269,7 +271,7 @@ export default function GradingInput() {
     } finally {
       setLoading(false);
     }
-  }, [studentId]);
+  }, [studentId, sessionDate]);
 
   useEffect(() => { refresh(); }, [refresh]);
 
@@ -285,6 +287,7 @@ export default function GradingInput() {
       student_id: studentId,
       unit_id: f.unit_id,
       round: 1,
+      session_date: sessionDate,
       total_count: Number(f.total_count),
       not_attempted: Number(f.not_attempted),
       gave_up: Number(f.gave_up),
@@ -330,8 +333,13 @@ export default function GradingInput() {
     <div className="max-w-2xl mx-auto space-y-5">
       <div className="flex items-center gap-3">
         <button onClick={() => navigate(-1)} className="text-gray-400 hover:text-gray-600 text-sm">← 뒤로</button>
-        <h1 className="text-xl font-bold text-gray-900">채점 이력 — {student.name}</h1>
+        <h1 className="text-xl font-bold text-gray-900">{student.name}</h1>
         <span className="text-sm text-gray-400">{student.class_name}</span>
+      </div>
+
+      {/* 날짜 선택 */}
+      <div className="flex items-center gap-3 py-3 border-b border-gray-100">
+        <DateSelector date={sessionDate} onChange={d => { setMode(null); setSearchParams({ date: d }); }} />
       </div>
 
       {mode === null && (
@@ -359,11 +367,11 @@ export default function GradingInput() {
       {records.length === 0 ? (
         <div className="text-center py-16 text-gray-400">
           <p className="text-3xl mb-3">📝</p>
-          <p className="text-sm">채점 기록이 없습니다. '새 1차 채점'으로 시작하세요.</p>
+          <p className="text-sm">이 날짜의 채점 기록이 없습니다. '새 1차 채점'으로 시작하세요.</p>
         </div>
       ) : (
         <div className="space-y-3">
-          <p className="text-xs text-gray-400 font-medium">채점 이력 ({records.length}건) — 최신순</p>
+          <p className="text-xs text-gray-400 font-medium">채점 기록 ({records.length}건)</p>
           {records.map(r => (
             <RecordCard key={r.id} record={r} units={units}
               onAddSecond={record => setMode({ type: 'second', record })}
