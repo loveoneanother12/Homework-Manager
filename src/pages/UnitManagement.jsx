@@ -2,22 +2,24 @@ import { useState, useEffect } from 'react';
 import { getUnits, addUnit, updateUnit, deleteUnit } from '../lib/store.js';
 
 const PRESET_TYPES = [
-  { value: 'proof',       label: '증명형', hint: '논리 흐름·서술 강조' },
-  { value: 'calculation', label: '계산형', hint: '검산 습관·계산 실수 강조' },
-  { value: 'mixed',       label: '혼합형', hint: '균형' },
-  { value: 'default',     label: '기본',   hint: '균형 (기본값)' },
+  { value: 'calculation_accuracy', label: '계산정확형',    hint: '계산 실수·검산 습관 강조' },
+  { value: 'proof_description',    label: '논증서술형',    hint: '논리 전개·서술 완성도 강조' },
+  { value: 'graph_interpretation', label: '그래프해석형',  hint: '그래프 오독→답 오류, 그래프 정확성 강조' },
+  { value: 'application',          label: '활용 및 응용형', hint: '문제 해석·풀이 설계 + 최종 계산 둘 다' },
+  { value: 'default',              label: '기본형',        hint: "균형 평가, '손 못 댐' 비율 모니터링" },
 ];
-const WEIGHTS = ['low', 'mid', 'high'];
-const WEIGHT_LABEL = { low: '낮음', mid: '중간', high: '높음' };
+const WEIGHTS = ['low', 'mid', 'mid_high', 'high'];
+const WEIGHT_LABEL = { low: '낮음', mid: '중', mid_high: '중~높음', high: '높음' };
 
 const PRESET_DEFAULTS = {
-  proof:       { weight_completion: 'mid', weight_accuracy: 'mid',  weight_process: 'high' },
-  calculation: { weight_completion: 'mid', weight_accuracy: 'high', weight_process: 'low'  },
-  mixed:       { weight_completion: 'mid', weight_accuracy: 'mid',  weight_process: 'mid'  },
-  default:     { weight_completion: 'mid', weight_accuracy: 'mid',  weight_process: 'mid'  },
+  calculation_accuracy: { weight_completion: 'mid',      weight_accuracy: 'high', weight_process: 'low'  },
+  proof_description:    { weight_completion: 'mid',      weight_accuracy: 'mid',  weight_process: 'high' },
+  graph_interpretation: { weight_completion: 'mid',      weight_accuracy: 'high', weight_process: 'mid'  },
+  application:          { weight_completion: 'mid',      weight_accuracy: 'high', weight_process: 'high' },
+  default:              { weight_completion: 'mid_high', weight_accuracy: 'mid',  weight_process: 'mid'  },
 };
 
-const EMPTY = { unit_name: '', preset_type: 'default', weight_completion: 'mid', weight_accuracy: 'mid', weight_process: 'mid' };
+const EMPTY = { unit_name: '', preset_type: 'default', weight_completion: 'mid_high', weight_accuracy: 'mid', weight_process: 'mid' };
 
 function WeightSelect({ value, onChange }) {
   return (
@@ -132,7 +134,7 @@ export default function UnitManagement() {
               <div className="flex items-center gap-2">
                 <span className="font-medium text-gray-900">{u.unit_name}</span>
                 <span className="text-xs bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-full">
-                  {{ proof: '증명형', calculation: '계산형', mixed: '혼합형', default: '기본' }[u.preset_type]}
+                  {{ calculation_accuracy: '계산정확형', proof_description: '논증서술형', graph_interpretation: '그래프해석형', application: '활용 및 응용형', default: '기본형' }[u.preset_type] ?? u.preset_type}
                 </span>
               </div>
               <div className="text-xs text-gray-500 mt-1 flex gap-4">

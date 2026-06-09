@@ -18,7 +18,7 @@ function byPart(sentences, part) {
  * @param {object} opts
  * @param {object} opts.kpi1   - calcFirst() 결과
  * @param {object|null} opts.kpi2   - calcSecond() 결과 or null
- * @param {string} opts.preset_type - proof|calculation|mixed|default
+ * @param {string} opts.preset_type - calculation_accuracy|proof_description|graph_interpretation|application|default
  * @param {string} opts.process_score - good|needs_work|poor
  * @param {Array}  opts.sentences - hw_sentence_blocks 전체 배열
  */
@@ -35,15 +35,18 @@ export function generateComment({ kpi1, kpi2, preset_type, process_score, senten
 
   // Part B — 오답 유형 진단 (단원 가중치 반영)
   let partB;
-  const wrongHigh       = kpi1.wrong_rate >= 0.3;
-  const gaveupHigh      = kpi1.gave_up_rate >= 0.2;
-  const notAttemptHigh  = kpi1.not_attempted_rate >= 0.2;
-  const proofPoor       = preset_type === 'proof' && process_score === 'poor';
+  const wrongHigh      = kpi1.wrong_rate >= 0.3;
+  const gaveupHigh     = kpi1.gave_up_rate >= 0.2;
+  const notAttemptHigh = kpi1.not_attempted_rate >= 0.2;
+  const calcType  = preset_type === 'calculation_accuracy' || preset_type === 'graph_interpretation';
+  const proofType = preset_type === 'proof_description'    || preset_type === 'application';
 
-  if (preset_type === 'calculation' && wrongHigh) {
+  if (calcType && wrongHigh) {
     partB = pick(B, 'calculation_wrong');
-  } else if (preset_type === 'proof' && proofPoor) {
+  } else if (proofType && process_score === 'poor') {
     partB = pick(B, 'proof_poor_process');
+  } else if (proofType && wrongHigh) {
+    partB = pick(B, 'calculation_wrong');
   } else if (gaveupHigh) {
     partB = pick(B, 'gaveup_high');
   } else if (notAttemptHigh) {
