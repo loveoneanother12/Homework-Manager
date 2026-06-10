@@ -166,6 +166,20 @@ export async function getLatestRecord(studentId) {
   return data ? withKpi(data) : null;
 }
 
+// 당일 2차 채점이 완료된 이전 회차 레코드 (second_session_date = 오늘)
+export async function getSecondRoundsByDate(studentIds, secondSessionDate, classId = null) {
+  if (!studentIds.length) return [];
+  let q = supabase.from('hw_homework_records').select('*')
+    .in('student_id', studentIds)
+    .eq('second_session_date', secondSessionDate)
+    .not('retry_total', 'is', null)
+    .order('created_at', { ascending: false });
+  if (classId) q = q.eq('class_id', classId);
+  const { data, error } = await q;
+  if (error) throw error;
+  return (data ?? []).map(withKpi);
+}
+
 export async function getPendingSecondRoundRecords(studentId, beforeDate, classId = null) {
   let q = supabase.from('hw_homework_records').select('*')
     .eq('student_id', studentId)

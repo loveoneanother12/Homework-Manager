@@ -3,7 +3,7 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 import GradingCard, { CARD_W, CARD_H } from '../components/GradingCard.jsx';
-import { getStudentsByClass, getRecordsByClass, getUnits, updateRecordComment, updateRecordComment2 } from '../lib/store.js';
+import { getClassByName, getStudentsByClassId, getRecordsByStudentIds, getSecondRoundsByDate, getUnits, updateRecordComment, updateRecordComment2 } from '../lib/store.js';
 import { today } from '../lib/dateUtils.js';
 import DateSelector from '../components/DateSelector.jsx';
 
@@ -27,17 +27,34 @@ export default function ClassPreview() {
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      const [students, records, units] = await Promise.all([
-        getStudentsByClass(decoded),
-        getRecordsByClass(decoded, sessionDate),
-        getUnits(),
+      const [cls, units] = await Promise.all([getClassByName(decoded), getUnits()]);
+      const classId = cls?.id ?? null;
+      const students = classId ? await getStudentsByClassId(classId) : [];
+      const studentIds = students.map(s => s.id);
+
+      const [records, secondRecords] = await Promise.all([
+        getRecordsByStudentIds(studentIds, sessionDate, classId),
+        getSecondRoundsByDate(studentIds, sessionDate, classId),
       ]);
-      const recordById = Object.fromEntries(records.map(r => [r.student_id, r]));
+
+      // 학생별 당일 1차 레코드 (이미 created_at desc 정렬)
+      const recordByStudent = {};
+      for (const r of records) {
+        if (!recordByStudent[r.student_id]) recordByStudent[r.student_id] = r;
+      }
+
+      // 학생별 당일 2차 완료 레코드 (second_session_date = 오늘인 이전 회차)
+      const secondByStudent = {};
+      for (const r of secondRecords) {
+        if (!secondByStudent[r.student_id]) secondByStudent[r.student_id] = r;
+      }
+
       const unitsById = Object.fromEntries(units.map(u => [u.id, u]));
       setEntries(students.map(s => ({
         student: s,
-        record: recordById[s.id] ?? null,
-        unit: recordById[s.id] ? (unitsById[recordById[s.id].unit_id] ?? null) : null,
+        record: recordByStudent[s.id] ?? null,
+        secondRecord: secondByStudent[s.id] ?? null,
+        unit: recordByStudent[s.id] ? (unitsById[recordByStudent[s.id].unit_id] ?? null) : null,
       })));
     } finally {
       setLoading(false);
@@ -56,7 +73,9 @@ export default function ClassPreview() {
   async function handleCommentChange2(recordId, value) {
     await updateRecordComment2(recordId, value);
     setEntries(prev => prev.map(e =>
-      e.record?.id === recordId ? { ...e, record: { ...e.record, manual_comment_2: value } } : e
+      e.secondRecord?.id === recordId
+        ? { ...e, secondRecord: { ...e.secondRecord, manual_comment_2: value } }
+        : e
     ));
   }
 
@@ -130,6 +149,7 @@ export default function ClassPreview() {
                 record={entry.record}
                 student={entry.student}
                 unit={entry.unit}
+                secondRecord={entry.secondRecord}
                 editable
                 onCommentChange={handleCommentChange}
                 onCommentChange2={handleCommentChange2}

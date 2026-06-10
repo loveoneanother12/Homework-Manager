@@ -33,15 +33,18 @@ function ScorePill({ value }) {
   return <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 9, background: bg, color, fontWeight: 600 }}>{label}</span>;
 }
 
-const GradingCard = forwardRef(function GradingCard({ record, student, unit, onCommentChange, onCommentChange2, editable = false }, ref) {
+const GradingCard = forwardRef(function GradingCard({ record, student, unit, secondRecord, onCommentChange, onCommentChange2, editable = false }, ref) {
   if (!record || !student) return null;
 
   const kpi1 = record._kpi1;
-  const kpi2 = record._kpi2 || null;
+  // secondRecord: 이번 회차에 2차 채점이 완료된 이전 회차 레코드
+  const kpi2 = secondRecord?._kpi2 || null;
   const displayComment = record.manual_comment || record.generated_comment || '';
-  const displayComment2 = record.manual_comment_2 || record.generated_comment_2 || '';
+  const displayComment2 = secondRecord
+    ? (secondRecord.manual_comment_2 || secondRecord.generated_comment_2 || '')
+    : '';
   const hasClinic = record.clinic_flag;
-  const hasSecond = !!(record.retry_total != null && record.retry_total !== '');
+  const hasSecond = !!secondRecord;
 
   return (
     <div
@@ -119,7 +122,7 @@ const GradingCard = forwardRef(function GradingCard({ record, student, unit, onC
               {editable ? (
                 <textarea
                   value={displayComment2}
-                  onChange={e => onCommentChange2?.(record.id, e.target.value)}
+                  onChange={e => onCommentChange2?.(secondRecord.id, e.target.value)}
                   style={{ height: 72, fontSize: 11, lineHeight: 1.6, color: '#1f2937', border: '1px solid #d1d5db', borderRadius: 4, padding: 6, resize: 'none', fontFamily: 'inherit', background: '#f9fafb' }}
                 />
               ) : (
