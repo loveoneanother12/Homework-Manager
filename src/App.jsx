@@ -7,6 +7,7 @@ import ClassPreview from './pages/ClassPreview.jsx';
 import UnitManagement from './pages/UnitManagement.jsx';
 import SentenceManagement from './pages/SentenceManagement.jsx';
 import ManagePage from './pages/ManagePage.jsx';
+import StudentHistory from './pages/StudentHistory.jsx';
 
 export default function App() {
   return (
@@ -15,6 +16,7 @@ export default function App() {
         <Routes>
           <Route path="/" element={<ClassList />} />
           <Route path="/manage" element={<ManagePage />} />
+          <Route path="/student/:studentId/history" element={<StudentHistory />} />
           <Route path="/class/:className" element={<StudentList />} />
           <Route path="/student/:studentId/grade" element={<GradingInput />} />
           <Route path="/class/:className/preview" element={<ClassPreview />} />

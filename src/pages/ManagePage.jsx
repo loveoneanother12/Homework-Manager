@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import {
   getClasses, addClass, updateClass, deleteClass,
   getStudents, getStudentsByClassId, addStudent, deleteStudent,
@@ -414,7 +415,13 @@ export default function ManagePage() {
               const classNames = studentClassNames[s.id] ?? [];
               return (
                 <div key={s.id} className="flex items-center px-5 py-3 gap-3">
-                  <span className="font-medium text-gray-900 w-20 flex-shrink-0">{s.name}</span>
+                  <Link
+                    to={`/student/${s.id}/history`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-medium text-indigo-700 hover:underline w-20 flex-shrink-0">
+                    {s.name}
+                  </Link>
                   {s.grade
                     ? <span className="text-xs text-gray-600 bg-gray-100 px-2 py-0.5 rounded flex-shrink-0">{s.grade}</span>
                     : <span className="w-10 flex-shrink-0" />
