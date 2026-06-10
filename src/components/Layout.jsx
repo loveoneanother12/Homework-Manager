@@ -1,8 +1,9 @@
 import { Link, useLocation } from 'react-router-dom';
 
 const NAV = [
-  { to: '/',          label: '반 목록' },
-  { to: '/units',     label: '단원 관리' },
+  { to: '/',        label: '채점' },
+  { to: '/manage',  label: '학생/반 관리' },
+  { to: '/units',   label: '단원 관리' },
   { to: '/sentences', label: '문장 풀 관리' },
 ];
 
