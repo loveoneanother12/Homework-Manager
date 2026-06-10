@@ -12,6 +12,7 @@ import DateSelector from '../components/DateSelector.jsx';
 import { SUBJECTS } from './UnitManagement.jsx';
 
 const PROCESS_OPTIONS = [
+  { value: null,         label: '없음', cls: 'bg-gray-100 text-gray-500 border-gray-300' },
   { value: 'good',       label: '우수', cls: 'bg-green-100 text-green-800 border-green-300' },
   { value: 'needs_work', label: '보통', cls: 'bg-yellow-100 text-yellow-800 border-yellow-300' },
   { value: 'poor',       label: '미흡', cls: 'bg-red-100 text-red-800 border-red-300' },
@@ -484,7 +485,13 @@ export default function GradingInput() {
   async function handleSaveSecond(refRecord, s, kpi2) {
     const kpi1 = refRecord._kpi1;
     const sentences = await getSentences();
-    const generated_comment_2 = generateComment2nd({ kpi2, sentences });
+    const generated_comment_2 = generateComment2nd({
+      kpi2,
+      retry_wrong: Number(s.retry_wrong),
+      retry_gave_up: Number(s.retry_gave_up),
+      note_quality: s.note_quality,
+      sentences,
+    });
     await updateRecord(refRecord.id, {
       round: 2,
       second_session_date: sessionDate,

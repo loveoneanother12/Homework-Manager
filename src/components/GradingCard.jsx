@@ -28,6 +28,7 @@ function KpiRow({ label, rate, color }) {
 }
 
 function ScorePill({ value }) {
+  if (!value) return null;
   const map = { good: { label: '우수', bg: '#dcfce7', color: '#166534' }, needs_work: { label: '보통', bg: '#fef9c3', color: '#854d0e' }, poor: { label: '미흡', bg: '#fee2e2', color: '#991b1b' } };
   const { label, bg, color } = map[value] || { label: value, bg: '#f3f4f6', color: '#374151' };
   return <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 9, background: bg, color, fontWeight: 600 }}>{label}</span>;

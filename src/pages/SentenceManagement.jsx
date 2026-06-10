@@ -1,27 +1,52 @@
 import { useState, useEffect } from 'react';
 import { getSentences, updateSentence, addSentence, deleteSentence, resetSentencesToDefault } from '../lib/store.js';
 
-const PARTS = ['A', 'B', 'C'];
-const PART_LABEL = { A: '파트 A — 이행 총평', B: '파트 B — 오답 유형 진단', C: '파트 C — 2차 개선 여부' };
+const PARTS = ['1', '2', '3', '4', '5', '6'];
+const PART_LABEL = {
+  '1': '파트 1 — 이행 총평 (1차, 항상)',
+  '2': '파트 2 — 오답 유형 진단 (1차, 항상)',
+  '3': '파트 3 — 풀이 서술 평가 (1차, 조건부)',
+  '4': '파트 4 — 오답 교정 결과 (2차, 항상)',
+  '5': '파트 5 — 반복 오류·미해결 경고 (2차, 조건부)',
+  '6': '파트 6 — 오답노트 서술 (2차, 조건부)',
+};
 const CONDITION_OPTIONS = {
-  A: [
-    { value: 'completion_high', label: '이행률 높음 (≥90%)' },
-    { value: 'completion_mid',  label: '이행률 중간 (70~89%)' },
-    { value: 'completion_low',  label: '이행률 낮음 (<70%)' },
-    { value: 'default',         label: '기본 fallback' },
+  '1': [
+    { value: 'completion_high', label: '이행률 ≥ 90%' },
+    { value: 'completion_mid',  label: '70% ≤ 이행률 < 90%' },
+    { value: 'completion_low',  label: '이행률 < 70%' },
+    { value: 'fallback',        label: 'fallback' },
   ],
-  B: [
-    { value: 'calculation_wrong',  label: '계산형 + 틀린 비율 높음' },
-    { value: 'gaveup_high',        label: '손 못 댄 비율 높음' },
-    { value: 'not_attempted_high', label: '안 푼 비율 높음' },
-    { value: 'proof_poor_process', label: '증명형 + 서술 미흡' },
-    { value: 'default',            label: '기본 fallback (우수)' },
+  '2': [
+    { value: 'gave_up_dominant',       label: '손 못 댄 비율 높음' },
+    { value: 'not_attempted_dominant', label: '안 푼 비율 높음' },
+    { value: 'wrong_dominant_general', label: '풀고 틀린 비율 높음 (일반)' },
+    { value: 'wrong_dominant_calc',    label: '풀고 틀린 비율 높음 (계산정확형·그래프해석형)' },
+    { value: 'no_issue',               label: '우수 / 특이사항 없음' },
+    { value: 'fallback',               label: 'fallback' },
   ],
-  C: [
-    { value: 'understanding_high', label: '이해 도달률 높음 (≥70%)' },
-    { value: 'understanding_mid',  label: '이해 도달률 중간 (40~69%)' },
-    { value: 'understanding_low',  label: '이해 도달률 낮음 (<40%)' },
-    { value: 'default',            label: '기본 fallback' },
+  '3': [
+    { value: 'good_logic',         label: '서술 우수 (논증서술형·활용 및 응용형)' },
+    { value: 'good_general',       label: '서술 우수 (그 외 단원)' },
+    { value: 'needs_work_logic',   label: '서술 보완 필요 (논증서술형·활용 및 응용형)' },
+    { value: 'needs_work_general', label: '서술 보완 필요 (그 외 단원)' },
+    { value: 'poor',               label: '서술 미흡' },
+  ],
+  '4': [
+    { value: 'understanding_high', label: '이해 도달률 ≥ 70%' },
+    { value: 'understanding_mid',  label: '40% ≤ 이해 도달률 < 70%' },
+    { value: 'understanding_low',  label: '이해 도달률 < 40%' },
+    { value: 'fallback',           label: 'fallback' },
+  ],
+  '5': [
+    { value: 'repeat_error_only', label: '반복 오류만 있음 (retry_wrong > 0)' },
+    { value: 'unresolved_only',   label: '미해결만 있음 (retry_gave_up > 0)' },
+    { value: 'both',              label: '반복 오류·미해결 모두 있음' },
+  ],
+  '6': [
+    { value: 'note_good',       label: '오답노트 우수' },
+    { value: 'note_needs_work', label: '오답노트 보완 필요' },
+    { value: 'note_poor',       label: '오답노트 미흡' },
   ],
 };
 
@@ -86,7 +111,7 @@ function SentenceRow({ s, onSave, onDelete }) {
   );
 }
 
-const NEW_EMPTY = { part: 'A', condition_key: 'default', sentence_text: '' };
+const NEW_EMPTY = { part: '1', condition_key: 'completion_high', sentence_text: '' };
 
 export default function SentenceManagement() {
   const [sentences, setSentences] = useState([]);
