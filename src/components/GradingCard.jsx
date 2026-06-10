@@ -69,6 +69,7 @@ const GradingCard = forwardRef(function GradingCard({ record, student, unit, onC
       {/* 헤더 */}
       <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, marginBottom: 8, borderBottom: '1px solid #e5e7eb', paddingBottom: 6 }}>
         <span style={{ fontSize: 16, fontWeight: 700, color: '#111827' }}>{student.name}</span>
+        {student.grade && <span style={{ fontSize: 11, color: '#6366f1', fontWeight: 600 }}>{student.grade}</span>}
         <span style={{ fontSize: 11, color: '#6b7280' }}>{unit?.unit_name ?? '—'}</span>
         <span style={{ marginLeft: 'auto', fontSize: 10, color: '#9ca3af' }}>{record.created_at?.slice(0, 10)}</span>
       </div>

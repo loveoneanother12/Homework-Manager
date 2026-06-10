@@ -95,7 +95,7 @@ export default function ManagePage() {
   const [memberSearch, setMemberSearch] = useState('');
 
   // 학생 풀 관리
-  const [newStudentName, setNewStudentName] = useState('');
+  const [newStudent, setNewStudent] = useState({ name: '', grade: '' });
   const [studentSaving, setStudentSaving] = useState(false);
 
   async function loadData() {
@@ -201,12 +201,12 @@ export default function ManagePage() {
 
   async function handleAddStudent(e) {
     e.preventDefault();
-    if (!newStudentName.trim()) return;
+    if (!newStudent.name.trim()) return;
     setStudentSaving(true);
     try {
-      const s = await addStudent({ name: newStudentName.trim() });
+      const s = await addStudent({ name: newStudent.name.trim(), grade: newStudent.grade || null });
       setAllStudents(prev => [...prev, s].sort((a, b) => a.name.localeCompare(b.name, 'ko')));
-      setNewStudentName('');
+      setNewStudent({ name: '', grade: '' });
     } finally { setStudentSaving(false); }
   }
 
@@ -313,6 +313,7 @@ export default function ManagePage() {
                               <div key={s.id}
                                 className="flex items-center gap-1.5 bg-white border border-gray-200 rounded-full pl-3 pr-1.5 py-1">
                                 <span className="text-sm text-gray-800 font-medium">{s.name}</span>
+                                {s.grade && <span className="text-xs text-gray-400">{s.grade}</span>}
                                 <button
                                   onClick={() => handleRemoveFromClass(s)}
                                   className="text-gray-400 hover:text-red-500 transition-colors text-xs w-5 h-5 flex items-center justify-center rounded-full hover:bg-red-50">
@@ -346,7 +347,9 @@ export default function ManagePage() {
                               <div className="flex flex-col gap-1 mt-2">
                                 {studentsToAdd.map(s => (
                                   <div key={s.id} className="flex items-center gap-3 bg-white border border-gray-200 rounded-lg px-4 py-2.5">
-                                    <span className="flex-1 text-sm font-medium text-gray-800">{s.name}</span>
+                                    <span className="text-sm font-medium text-gray-800">{s.name}</span>
+                                    {s.grade && <span className="text-xs text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">{s.grade}</span>}
+                                    <span className="flex-1" />
                                     {(studentClassNames[s.id] ?? []).length > 0 && (
                                       <span className="text-xs text-gray-400">
                                         {studentClassNames[s.id].join(', ')}
@@ -377,15 +380,24 @@ export default function ManagePage() {
       <section>
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold text-gray-800">학생 관리</h2>
-          <form onSubmit={handleAddStudent} className="flex gap-2 items-center">
+          <form onSubmit={handleAddStudent} className="flex gap-2 items-center flex-wrap justify-end">
             <input
               type="text"
-              value={newStudentName}
-              onChange={e => setNewStudentName(e.target.value)}
+              value={newStudent.name}
+              onChange={e => setNewStudent(f => ({ ...f, name: e.target.value }))}
               placeholder="학생 이름"
-              className="border border-gray-300 rounded-lg px-3 py-2 text-sm w-36 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="border border-gray-300 rounded-lg px-3 py-2 text-sm w-28 focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
-            <button type="submit" disabled={studentSaving || !newStudentName.trim()}
+            <select
+              value={newStudent.grade}
+              onChange={e => setNewStudent(f => ({ ...f, grade: e.target.value }))}
+              className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+              <option value="">학년 선택</option>
+              {['초1','초2','초3','초4','초5','초6','중1','중2','중3','고1','고2','고3','N수'].map(g => (
+                <option key={g} value={g}>{g}</option>
+              ))}
+            </select>
+            <button type="submit" disabled={studentSaving || !newStudent.name.trim()}
               className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 disabled:opacity-50 transition-colors">
               {studentSaving ? '저장 중…' : '+ 추가'}
             </button>
@@ -401,8 +413,12 @@ export default function ManagePage() {
             {allStudents.map(s => {
               const classNames = studentClassNames[s.id] ?? [];
               return (
-                <div key={s.id} className="flex items-center px-5 py-3 gap-4">
-                  <span className="font-medium text-gray-900 w-24 flex-shrink-0">{s.name}</span>
+                <div key={s.id} className="flex items-center px-5 py-3 gap-3">
+                  <span className="font-medium text-gray-900 w-20 flex-shrink-0">{s.name}</span>
+                  {s.grade
+                    ? <span className="text-xs text-gray-600 bg-gray-100 px-2 py-0.5 rounded flex-shrink-0">{s.grade}</span>
+                    : <span className="w-10 flex-shrink-0" />
+                  }
                   <div className="flex-1 flex gap-1.5 flex-wrap">
                     {classNames.length > 0
                       ? classNames.map(cn => (
