@@ -49,6 +49,15 @@ export async function updateClass(id, updates) {
 }
 
 export async function deleteClass(id) {
+  const { data: cls } = await supabase.from('hw_classes').select('class_name').eq('id', id).single();
+  if (cls) {
+    const { data: students } = await supabase.from('hw_students').select('id').eq('class_name', cls.class_name);
+    if (students?.length) {
+      const ids = students.map(s => s.id);
+      await supabase.from('hw_homework_records').delete().in('student_id', ids);
+      await supabase.from('hw_students').delete().in('id', ids);
+    }
+  }
   const { error } = await supabase.from('hw_classes').delete().eq('id', id);
   if (error) throw error;
 }

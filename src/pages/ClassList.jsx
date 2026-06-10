@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { getClasses, getStudentsByClass, addStudent, addClass, updateClass } from '../lib/store.js';
+import { getClasses, getStudentsByClass, addStudent, addClass, updateClass, deleteClass } from '../lib/store.js';
 
 const DAYS = ['월', '화', '수', '목', '금', '토', '일'];
 const JS_TO_KR = ['일', '월', '화', '수', '목', '금', '토']; // Date.getDay() 0=일
@@ -161,6 +161,15 @@ export default function ClassList() {
     setEditTarget(cls);
     setFormMode('edit_class');
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  async function handleDeleteClass(cls, studentCount) {
+    const msg = studentCount > 0
+      ? `'${cls.class_name}'을(를) 삭제하면 소속 학생 ${studentCount}명과 채점 기록도 함께 삭제됩니다.\n계속하시겠습니까?`
+      : `'${cls.class_name}'을(를) 삭제하시겠습니까?`;
+    if (!confirm(msg)) return;
+    await deleteClass(cls.id);
+    await refresh();
   }
 
   function openAddStudent() {
@@ -356,7 +365,11 @@ export default function ClassList() {
                     {students.length > 5 && <span className="text-xs text-gray-400">+{students.length - 5}명</span>}
                   </div>
                 </Link>
-                <div className="px-5 py-2.5 border-t border-gray-100 flex justify-end">
+                <div className="px-5 py-2.5 border-t border-gray-100 flex justify-between items-center">
+                  <button onClick={() => handleDeleteClass(cls, students.length)}
+                    className="text-xs text-gray-400 hover:text-red-500 font-medium transition-colors">
+                    삭제
+                  </button>
                   <button onClick={() => openEditClass(cls)}
                     className="text-xs text-gray-400 hover:text-indigo-600 font-medium transition-colors">
                     반 정보 편집
