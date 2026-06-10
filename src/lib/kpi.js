@@ -9,7 +9,7 @@ export function calcFirst({ total_count, not_attempted, gave_up, wrong_attempted
     correct,
     first_wrongs,
     completion_rate: safe(total_count - not_attempted, total_count),
-    accuracy_rate: safe(correct, total_count),
+    accuracy_rate: safe(correct, total_count - not_attempted),
     not_attempted_rate: safe(not_attempted, total_count),
     gave_up_rate: safe(gave_up, total_count),
     wrong_rate: safe(wrong_attempted, total_count),
