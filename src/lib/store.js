@@ -141,6 +141,17 @@ export async function getLatestRecord(studentId) {
   return data ? withKpi(data) : null;
 }
 
+// 2차 채점 대기 중인 이전 회차 레코드 (session_date < 현재 날짜, 2차 미완료)
+export async function getPendingSecondRoundRecords(studentId, beforeDate) {
+  const { data, error } = await supabase.from('hw_homework_records').select('*')
+    .eq('student_id', studentId)
+    .is('retry_total', null)
+    .lt('session_date', beforeDate)
+    .order('session_date', { ascending: false });
+  if (error) throw error;
+  return (data ?? []).map(withKpi);
+}
+
 // 반 전체 학생의 레코드를 한 번에 가져옴 (N+1 방지)
 export async function getRecordsByStudentIds(ids, sessionDate = null) {
   if (!ids.length) return [];
@@ -181,6 +192,10 @@ export async function updateRecord(id, data) {
 
 export async function updateRecordComment(id, manual_comment) {
   return updateRecord(id, { manual_comment });
+}
+
+export async function updateRecordComment2(id, manual_comment_2) {
+  return updateRecord(id, { manual_comment_2 });
 }
 
 export async function deleteRecord(id) {

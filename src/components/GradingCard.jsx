@@ -33,12 +33,13 @@ function ScorePill({ value }) {
   return <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 9, background: bg, color, fontWeight: 600 }}>{label}</span>;
 }
 
-const GradingCard = forwardRef(function GradingCard({ record, student, unit, onCommentChange, editable = false }, ref) {
+const GradingCard = forwardRef(function GradingCard({ record, student, unit, onCommentChange, onCommentChange2, editable = false }, ref) {
   if (!record || !student) return null;
 
   const kpi1 = record._kpi1;
   const kpi2 = record._kpi2 || null;
   const displayComment = record.manual_comment || record.generated_comment || '';
+  const displayComment2 = record.manual_comment_2 || record.generated_comment_2 || '';
   const hasClinic = record.clinic_flag;
   const hasSecond = !!(record.retry_total != null && record.retry_total !== '');
 
@@ -98,28 +99,49 @@ const GradingCard = forwardRef(function GradingCard({ record, student, unit, onC
 
         {/* 우: 코멘트 */}
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-          <div style={{ fontSize: 10, fontWeight: 600, color: '#6b7280', marginBottom: 4 }}>강사 코멘트</div>
-          {editable ? (
-            <textarea
-              value={displayComment}
-              onChange={e => onCommentChange?.(record.id, e.target.value)}
-              style={{
-                flex: 1,
-                fontSize: 11,
-                lineHeight: 1.6,
-                color: '#1f2937',
-                border: '1px solid #d1d5db',
-                borderRadius: 4,
-                padding: 6,
-                resize: 'none',
-                fontFamily: 'inherit',
-                background: '#f9fafb',
-              }}
-            />
+          {hasSecond ? (
+            <>
+              <div style={{ fontSize: 9, fontWeight: 600, color: '#6b7280', marginBottom: 2 }}>이번 과제 코멘트</div>
+              {editable ? (
+                <textarea
+                  value={displayComment}
+                  onChange={e => onCommentChange?.(record.id, e.target.value)}
+                  style={{ height: 80, fontSize: 11, lineHeight: 1.6, color: '#1f2937', border: '1px solid #d1d5db', borderRadius: 4, padding: 6, resize: 'none', fontFamily: 'inherit', background: '#f9fafb' }}
+                />
+              ) : (
+                <div style={{ height: 80, fontSize: 11, lineHeight: 1.7, color: '#1f2937', background: '#f9fafb', borderRadius: 4, padding: 6, border: '1px solid #e5e7eb', wordBreak: 'keep-all', overflow: 'hidden' }}>
+                  {displayComment}
+                </div>
+              )}
+              <div style={{ borderTop: '1px solid #e5e7eb', margin: '4px 0' }} />
+              <div style={{ fontSize: 9, fontWeight: 600, color: '#6b7280', marginBottom: 2 }}>오답노트 피드백</div>
+              {editable ? (
+                <textarea
+                  value={displayComment2}
+                  onChange={e => onCommentChange2?.(record.id, e.target.value)}
+                  style={{ height: 72, fontSize: 11, lineHeight: 1.6, color: '#1f2937', border: '1px solid #d1d5db', borderRadius: 4, padding: 6, resize: 'none', fontFamily: 'inherit', background: '#f9fafb' }}
+                />
+              ) : (
+                <div style={{ height: 72, fontSize: 11, lineHeight: 1.7, color: '#1f2937', background: '#f9fafb', borderRadius: 4, padding: 6, border: '1px solid #e5e7eb', wordBreak: 'keep-all', overflow: 'hidden' }}>
+                  {displayComment2}
+                </div>
+              )}
+            </>
           ) : (
-            <div style={{ flex: 1, fontSize: 11, lineHeight: 1.7, color: '#1f2937', background: '#f9fafb', borderRadius: 4, padding: 6, border: '1px solid #e5e7eb', wordBreak: 'keep-all' }}>
-              {displayComment}
-            </div>
+            <>
+              <div style={{ fontSize: 10, fontWeight: 600, color: '#6b7280', marginBottom: 4 }}>강사 코멘트</div>
+              {editable ? (
+                <textarea
+                  value={displayComment}
+                  onChange={e => onCommentChange?.(record.id, e.target.value)}
+                  style={{ flex: 1, fontSize: 11, lineHeight: 1.6, color: '#1f2937', border: '1px solid #d1d5db', borderRadius: 4, padding: 6, resize: 'none', fontFamily: 'inherit', background: '#f9fafb' }}
+                />
+              ) : (
+                <div style={{ flex: 1, fontSize: 11, lineHeight: 1.7, color: '#1f2937', background: '#f9fafb', borderRadius: 4, padding: 6, border: '1px solid #e5e7eb', wordBreak: 'keep-all' }}>
+                  {displayComment}
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>

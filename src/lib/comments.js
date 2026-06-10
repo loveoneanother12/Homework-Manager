@@ -14,59 +14,48 @@ function byPart(sentences, part) {
   return pool.length > 0 ? pool : DEFAULT_SENTENCES.filter(s => s.part === part);
 }
 
-/**
- * @param {object} opts
- * @param {object} opts.kpi1   - calcFirst() 결과
- * @param {object|null} opts.kpi2   - calcSecond() 결과 or null
- * @param {string} opts.preset_type - calculation_accuracy|proof_description|graph_interpretation|application|default
- * @param {string} opts.process_score - good|needs_work|poor
- * @param {Array}  opts.sentences - hw_sentence_blocks 전체 배열
- */
-export function generateComment({ kpi1, kpi2, preset_type, process_score, sentences = [] }) {
+// ── 1차 코멘트 (Part A + B) ─────────────────────────────────────────────────
+
+export function generateComment1st({ kpi1, preset_type, process_score, sentences = [] }) {
   const A = byPart(sentences, 'A');
   const B = byPart(sentences, 'B');
-  const C = byPart(sentences, 'C');
 
   // Part A — 이행 총평
   let partA;
-  if (kpi1.completion_rate >= 0.9) partA = pick(A, 'completion_high');
+  if (kpi1.completion_rate >= 0.9)      partA = pick(A, 'completion_high');
   else if (kpi1.completion_rate >= 0.7) partA = pick(A, 'completion_mid');
-  else partA = pick(A, 'completion_low');
+  else                                   partA = pick(A, 'completion_low');
 
-  // Part B — 오답 유형 진단 (단원 가중치 반영)
-  let partB;
+  // Part B — 오답 유형 진단
   const wrongHigh      = kpi1.wrong_rate >= 0.3;
   const gaveupHigh     = kpi1.gave_up_rate >= 0.2;
   const notAttemptHigh = kpi1.not_attempted_rate >= 0.2;
   const calcType  = preset_type === 'calculation_accuracy' || preset_type === 'graph_interpretation';
   const proofType = preset_type === 'proof_description'    || preset_type === 'application';
 
-  if (calcType && wrongHigh) {
-    partB = pick(B, 'calculation_wrong');
-  } else if (proofType && process_score === 'poor') {
-    partB = pick(B, 'proof_poor_process');
-  } else if (proofType && wrongHigh) {
-    partB = pick(B, 'calculation_wrong');
-  } else if (gaveupHigh) {
-    partB = pick(B, 'gaveup_high');
-  } else if (notAttemptHigh) {
-    partB = pick(B, 'not_attempted_high');
-  } else if (wrongHigh) {
-    partB = pick(B, 'calculation_wrong');
-  } else {
-    partB = pick(B, 'default');
-  }
+  let partB;
+  if (calcType && wrongHigh)                   partB = pick(B, 'calculation_wrong');
+  else if (proofType && process_score === 'poor') partB = pick(B, 'proof_poor_process');
+  else if (proofType && wrongHigh)              partB = pick(B, 'calculation_wrong');
+  else if (gaveupHigh)                          partB = pick(B, 'gaveup_high');
+  else if (notAttemptHigh)                      partB = pick(B, 'not_attempted_high');
+  else if (wrongHigh)                           partB = pick(B, 'calculation_wrong');
+  else                                          partB = pick(B, 'default');
 
-  // Part C — 2차 개선 여부 (데이터 있을 때만)
-  let partC = null;
-  if (kpi2) {
-    if (kpi2.understanding_rate >= 0.7) partC = pick(C, 'understanding_high');
-    else if (kpi2.understanding_rate >= 0.4) partC = pick(C, 'understanding_mid');
-    else partC = pick(C, 'understanding_low');
-  }
-
-  return [partA, partB, ...(partC ? [partC] : [])].join(' ');
+  return [partA, partB].join(' ');
 }
+
+// ── 2차 코멘트 (Part C) ──────────────────────────────────────────────────────
+
+export function generateComment2nd({ kpi2, sentences = [] }) {
+  if (!kpi2) return null;
+  const C = byPart(sentences, 'C');
+  if (kpi2.understanding_rate >= 0.7)      return pick(C, 'understanding_high');
+  else if (kpi2.understanding_rate >= 0.4) return pick(C, 'understanding_mid');
+  else                                      return pick(C, 'understanding_low');
+}
+
+// ── clinic 판정 ──────────────────────────────────────────────────────────────
 
 export function shouldFlagClinic({ kpi1, kpi2 }) {
   if (kpi2) return kpi2.unresolved_rate >= 0.3 || kpi2.repeat_error_rate > 0;

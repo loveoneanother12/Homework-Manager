@@ -3,7 +3,7 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 import GradingCard, { CARD_W, CARD_H } from '../components/GradingCard.jsx';
-import { getStudentsByClass, getRecordsByClass, getUnits, updateRecordComment } from '../lib/store.js';
+import { getStudentsByClass, getRecordsByClass, getUnits, updateRecordComment, updateRecordComment2 } from '../lib/store.js';
 import { today } from '../lib/dateUtils.js';
 import DateSelector from '../components/DateSelector.jsx';
 
@@ -50,6 +50,13 @@ export default function ClassPreview() {
     await updateRecordComment(recordId, value);
     setEntries(prev => prev.map(e =>
       e.record?.id === recordId ? { ...e, record: { ...e.record, manual_comment: value } } : e
+    ));
+  }
+
+  async function handleCommentChange2(recordId, value) {
+    await updateRecordComment2(recordId, value);
+    setEntries(prev => prev.map(e =>
+      e.record?.id === recordId ? { ...e, record: { ...e.record, manual_comment_2: value } } : e
     ));
   }
 
@@ -125,6 +132,7 @@ export default function ClassPreview() {
                 unit={entry.unit}
                 editable
                 onCommentChange={handleCommentChange}
+                onCommentChange2={handleCommentChange2}
               />
               <p className="text-xs text-gray-400 text-center">코멘트 텍스트 박스에서 직접 수정 가능</p>
             </div>
