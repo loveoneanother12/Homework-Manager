@@ -19,20 +19,20 @@ export const PRESET_LABEL = {
   default:              '기본형',
 };
 
-const WEIGHTS = ['low', 'mid', 'mid_high', 'high'];
-export const WEIGHT_LABEL = { low: '낮음', mid: '중', mid_high: '중~높음', high: '높음' };
+const WEIGHTS = ['low', 'mid', 'high'];
+export const WEIGHT_LABEL = { low: '낮음', mid: '중간', high: '높음' };
 
 const PRESET_DEFAULTS = {
-  calculation_accuracy: { weight_completion: 'mid',      weight_accuracy: 'high', weight_process: 'low'  },
-  proof_description:    { weight_completion: 'mid',      weight_accuracy: 'mid',  weight_process: 'high' },
-  graph_interpretation: { weight_completion: 'mid',      weight_accuracy: 'high', weight_process: 'mid'  },
-  application:          { weight_completion: 'mid',      weight_accuracy: 'high', weight_process: 'high' },
-  default:              { weight_completion: 'mid_high', weight_accuracy: 'mid',  weight_process: 'mid'  },
+  calculation_accuracy: { weight_completion: 'mid', weight_accuracy: 'high', weight_process: 'low'  },
+  proof_description:    { weight_completion: 'mid', weight_accuracy: 'mid',  weight_process: 'high' },
+  graph_interpretation: { weight_completion: 'mid', weight_accuracy: 'high', weight_process: 'mid'  },
+  application:          { weight_completion: 'mid', weight_accuracy: 'high', weight_process: 'high' },
+  default:              { weight_completion: 'mid', weight_accuracy: 'mid',  weight_process: 'mid'  },
 };
 
 const EMPTY = {
   unit_name: '', subject: SUBJECTS[0], preset_type: 'default',
-  weight_completion: 'mid_high', weight_accuracy: 'mid', weight_process: 'mid',
+  weight_completion: 'mid', weight_accuracy: 'mid', weight_process: 'mid',
 };
 
 function WeightSelect({ value, onChange }) {
