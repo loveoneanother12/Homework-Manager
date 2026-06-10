@@ -4,7 +4,6 @@ import { supabase } from './supabase.js';
 import { calcFirst, calcSecond } from './kpi.js';
 import { DEFAULT_SENTENCES } from './sentences.js';
 
-// DB에는 _kpi1/_kpi2를 저장하지 않고, 로드 시 raw 값으로 재계산
 function withKpi(record) {
   if (!record) return null;
   const kpi1 = calcFirst({
@@ -31,6 +30,11 @@ export async function getClasses() {
   return data ?? [];
 }
 
+export async function getClassByName(className) {
+  const { data } = await supabase.from('hw_classes').select('*').eq('class_name', className).single();
+  return data ?? null;
+}
+
 export async function addClass(data) {
   const { data: c, error } = await supabase.from('hw_classes').insert(data).select().single();
   if (error) throw error;
@@ -38,26 +42,12 @@ export async function addClass(data) {
 }
 
 export async function updateClass(id, updates) {
-  if (updates.class_name) {
-    const { data: existing } = await supabase.from('hw_classes').select('class_name').eq('id', id).single();
-    if (existing && existing.class_name !== updates.class_name) {
-      await supabase.from('hw_students').update({ class_name: updates.class_name }).eq('class_name', existing.class_name);
-    }
-  }
   const { error } = await supabase.from('hw_classes').update(updates).eq('id', id);
   if (error) throw error;
 }
 
 export async function deleteClass(id) {
-  const { data: cls } = await supabase.from('hw_classes').select('class_name').eq('id', id).single();
-  if (cls) {
-    const { data: students } = await supabase.from('hw_students').select('id').eq('class_name', cls.class_name);
-    if (students?.length) {
-      const ids = students.map(s => s.id);
-      await supabase.from('hw_homework_records').delete().in('student_id', ids);
-      await supabase.from('hw_students').delete().in('id', ids);
-    }
-  }
+  // hw_class_students + hw_homework_records: ON DELETE CASCADE로 자동 정리
   const { error } = await supabase.from('hw_classes').delete().eq('id', id);
   if (error) throw error;
 }
@@ -71,9 +61,20 @@ export async function getStudents() {
 }
 
 export async function getStudentsByClass(className) {
-  const { data, error } = await supabase.from('hw_students').select('*')
-    .eq('class_name', className).order('name');
-  if (error) throw error;
+  const cls = await getClassByName(className);
+  if (!cls) return [];
+  return getStudentsByClassId(cls.id);
+}
+
+export async function getStudentsByClassId(classId) {
+  const { data: members, error: e1 } = await supabase
+    .from('hw_class_students').select('student_id').eq('class_id', classId);
+  if (e1) throw e1;
+  if (!members?.length) return [];
+  const ids = members.map(m => m.student_id);
+  const { data, error: e2 } = await supabase
+    .from('hw_students').select('*').in('id', ids).order('name');
+  if (e2) throw e2;
   return data ?? [];
 }
 
@@ -89,8 +90,31 @@ export async function addStudent(data) {
 }
 
 export async function deleteStudent(id) {
+  await supabase.from('hw_homework_records').delete().eq('student_id', id);
+  await supabase.from('hw_class_students').delete().eq('student_id', id);
   const { error } = await supabase.from('hw_students').delete().eq('id', id);
   if (error) throw error;
+}
+
+// ── 반-학생 연결 (N:M) ───────────────────────────────────────────────────────
+
+export async function addStudentToClass(classId, studentId) {
+  const { error } = await supabase
+    .from('hw_class_students').insert({ class_id: classId, student_id: studentId });
+  if (error) throw error;
+}
+
+export async function removeStudentFromClass(classId, studentId) {
+  const { error } = await supabase.from('hw_class_students').delete()
+    .eq('class_id', classId).eq('student_id', studentId);
+  if (error) throw error;
+}
+
+export async function getAllClassMemberships() {
+  const { data, error } = await supabase
+    .from('hw_class_students').select('class_id, student_id');
+  if (error) throw error;
+  return data ?? [];
 }
 
 // ── 단원 프리셋 ───────────────────────────────────────────────────────────────
@@ -126,10 +150,11 @@ export async function deleteUnit(id) {
 
 // ── 채점 기록 ─────────────────────────────────────────────────────────────────
 
-export async function getRecordsByStudent(studentId, sessionDate = null) {
+export async function getRecordsByStudent(studentId, sessionDate = null, classId = null) {
   let q = supabase.from('hw_homework_records').select('*')
     .eq('student_id', studentId).order('created_at', { ascending: false });
   if (sessionDate) q = q.eq('session_date', sessionDate);
+  if (classId) q = q.eq('class_id', classId);
   const { data, error } = await q;
   if (error) throw error;
   return (data ?? []).map(withKpi);
@@ -141,49 +166,49 @@ export async function getLatestRecord(studentId) {
   return data ? withKpi(data) : null;
 }
 
-// 2차 채점 대기 중인 이전 회차 레코드 (session_date < 현재 날짜, 2차 미완료)
-export async function getPendingSecondRoundRecords(studentId, beforeDate) {
-  const { data, error } = await supabase.from('hw_homework_records').select('*')
+export async function getPendingSecondRoundRecords(studentId, beforeDate, classId = null) {
+  let q = supabase.from('hw_homework_records').select('*')
     .eq('student_id', studentId)
     .is('retry_total', null)
     .lt('session_date', beforeDate)
     .order('session_date', { ascending: false });
+  if (classId) q = q.eq('class_id', classId);
+  const { data, error } = await q;
   if (error) throw error;
   return (data ?? []).map(withKpi);
 }
 
-// 반 전체 학생의 레코드를 한 번에 가져옴 (N+1 방지)
-export async function getRecordsByStudentIds(ids, sessionDate = null) {
+export async function getRecordsByStudentIds(ids, sessionDate = null, classId = null) {
   if (!ids.length) return [];
   let q = supabase.from('hw_homework_records').select('*')
     .in('student_id', ids).order('created_at', { ascending: false });
   if (sessionDate) q = q.eq('session_date', sessionDate);
+  if (classId) q = q.eq('class_id', classId);
   const { data, error } = await q;
   if (error) throw error;
   return (data ?? []).map(withKpi);
 }
 
 export async function getRecordsByClass(className, sessionDate = null) {
-  const students = await getStudentsByClass(className);
+  const cls = await getClassByName(className);
+  if (!cls) return [];
+  const students = await getStudentsByClassId(cls.id);
   if (!students.length) return [];
-  const records = await getRecordsByStudentIds(students.map(s => s.id), sessionDate);
-  // student_id별 최신 레코드만 (PDF·미리보기용)
+  const records = await getRecordsByStudentIds(students.map(s => s.id), sessionDate, cls.id);
   const byStudent = {};
   for (const r of records) {
-    if (!byStudent[r.student_id]) byStudent[r.student_id] = r; // already sorted desc
+    if (!byStudent[r.student_id]) byStudent[r.student_id] = r;
   }
   return Object.values(byStudent);
 }
 
-// 1차 채점 신규 저장
 export async function addRecord(data) {
-  const { _kpi1, _kpi2, ...rest } = data; // 계산값은 DB에 저장하지 않음
+  const { _kpi1, _kpi2, ...rest } = data;
   const { data: r, error } = await supabase.from('hw_homework_records').insert(rest).select().single();
   if (error) throw error;
   return withKpi(r);
 }
 
-// 기존 레코드 업데이트 (2차 채점 추가 등)
 export async function updateRecord(id, data) {
   const { _kpi1, _kpi2, ...rest } = data;
   const { error } = await supabase.from('hw_homework_records').update(rest).eq('id', id);

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link, useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { getStudentsByClass, getRecordsByStudentIds, getUnits, deleteStudent } from '../lib/store.js';
+import { getClassByName, getStudentsByClassId, getRecordsByStudentIds, getUnits, deleteStudent } from '../lib/store.js';
 import { pct } from '../lib/kpi.js';
 import { today } from '../lib/dateUtils.js';
 import DateSelector from '../components/DateSelector.jsx';
@@ -15,13 +15,17 @@ export default function StudentList() {
 
   const [entries, setEntries] = useState([]); // [{student, record, unit}]
   const [loading, setLoading] = useState(true);
+  const [classId, setClassId] = useState(null);
 
   async function refresh() {
     setLoading(true);
     try {
-      const students = await getStudentsByClass(decoded);
+      const cls = await getClassByName(decoded);
+      const resolvedClassId = cls?.id ?? null;
+      setClassId(resolvedClassId);
+      const students = resolvedClassId ? await getStudentsByClassId(resolvedClassId) : [];
       const [allRecords, units] = await Promise.all([
-        getRecordsByStudentIds(students.map(s => s.id), sessionDate),
+        getRecordsByStudentIds(students.map(s => s.id), sessionDate, resolvedClassId),
         getUnits(),
       ]);
       const unitsById = Object.fromEntries(units.map(u => [u.id, u]));
@@ -48,7 +52,7 @@ export default function StudentList() {
     await refresh();
   }
 
-  const gradingLink = (studentId) => `/student/${studentId}/grade?date=${sessionDate}`;
+  const gradingLink = (studentId) => `/student/${studentId}/grade?date=${sessionDate}&class=${encodeURIComponent(decoded)}`;
   const previewLink = `/class/${className}/preview?date=${sessionDate}`;
 
   const doneCount = entries.filter(e => e.record).length;

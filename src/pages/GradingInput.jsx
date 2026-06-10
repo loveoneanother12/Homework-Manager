@@ -1,8 +1,8 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   getStudent, getUnits, getRecordsByStudent,
-  getPendingSecondRoundRecords,
+  getPendingSecondRoundRecords, getClassByName,
   addRecord, updateRecord, deleteRecord, getSentences,
 } from '../lib/store.js';
 import { calcFirst, calcSecond, validate1st, validate2nd, pct } from '../lib/kpi.js';
@@ -404,6 +404,9 @@ export default function GradingInput() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const sessionDate = searchParams.get('date') ?? today();
+  const className = searchParams.get('class');
+
+  const classIdRef = useRef(null); // 항상 최신 classId를 참조
 
   const [student, setStudent] = useState(null);
   const [units, setUnits] = useState([]);
@@ -416,25 +419,28 @@ export default function GradingInput() {
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      const [s, u, r] = await Promise.all([
+      const [s, u, cls] = await Promise.all([
         getStudent(studentId),
         getUnits(),
-        getRecordsByStudent(studentId, sessionDate),
+        className ? getClassByName(className) : Promise.resolve(null),
       ]);
+      const resolvedClassId = cls?.id ?? null;
+      classIdRef.current = resolvedClassId;
+      const r = await getRecordsByStudent(studentId, sessionDate, resolvedClassId);
       setStudent(s);
       setUnits(u);
       setRecords(r);
     } finally {
       setLoading(false);
     }
-  }, [studentId, sessionDate]);
+  }, [studentId, sessionDate, className]);
 
   useEffect(() => { refresh(); }, [refresh]);
 
   async function refreshPending() {
     setPendingLoading(true);
     try {
-      const pending = await getPendingSecondRoundRecords(studentId, sessionDate);
+      const pending = await getPendingSecondRoundRecords(studentId, sessionDate, classIdRef.current);
       setPendingRecords(pending);
     } finally {
       setPendingLoading(false);
@@ -455,6 +461,7 @@ export default function GradingInput() {
     });
     await addRecord({
       student_id: studentId,
+      class_id: classIdRef.current,
       unit_id: f.unit_id,
       round: 1,
       session_date: sessionDate,
@@ -508,7 +515,7 @@ export default function GradingInput() {
       <div className="flex items-center gap-3">
         <button onClick={() => navigate(-1)} className="text-gray-400 hover:text-gray-600 text-sm">← 뒤로</button>
         <h1 className="text-xl font-bold text-gray-900">{student.name}</h1>
-        <span className="text-sm text-gray-400">{student.class_name}</span>
+        {className && <span className="text-sm text-gray-400">{className}</span>}
       </div>
 
       {/* 날짜 선택 */}
