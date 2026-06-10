@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link, useParams, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useParams, useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { getClassByName, getStudentsByClassId, getRecordsByStudentIds, getUnits, deleteStudent } from '../lib/store.js';
 import { pct } from '../lib/kpi.js';
 import { today } from '../lib/dateUtils.js';
@@ -12,6 +12,7 @@ export default function StudentList() {
 
   const [searchParams, setSearchParams] = useSearchParams();
   const sessionDate = searchParams.get('date') ?? today();
+  const { key: locationKey } = useLocation();
 
   const [entries, setEntries] = useState([]); // [{student, record, unit}]
   const [loading, setLoading] = useState(true);
@@ -44,7 +45,7 @@ export default function StudentList() {
     }
   }
 
-  useEffect(() => { refresh(); }, [decoded, sessionDate]);
+  useEffect(() => { refresh(); }, [decoded, sessionDate, locationKey]);
 
   async function handleDelete(id, name) {
     if (!confirm(`'${name}' 학생을 삭제하시겠습니까?`)) return;

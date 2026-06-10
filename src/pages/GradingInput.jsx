@@ -520,7 +520,7 @@ export default function GradingInput() {
 
       {/* 날짜 선택 */}
       <div className="flex items-center gap-3 py-3 border-b border-gray-100">
-        <DateSelector date={sessionDate} onChange={d => { setShowPanel(false); setSearchParams({ date: d }); }} />
+        <DateSelector date={sessionDate} onChange={d => { setShowPanel(false); setSearchParams(prev => { const p = new URLSearchParams(prev); p.set('date', d); return p; }); }} />
       </div>
 
       {/* 과제 채점 버튼 / 패널 */}

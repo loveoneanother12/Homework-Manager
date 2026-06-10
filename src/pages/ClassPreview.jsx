@@ -102,7 +102,7 @@ export default function ClassPreview() {
 
       {/* 날짜 선택 */}
       <div className="mb-5 flex items-center gap-3 flex-wrap">
-        <DateSelector date={sessionDate} onChange={d => setSearchParams({ date: d })} />
+        <DateSelector date={sessionDate} onChange={d => setSearchParams(prev => { const p = new URLSearchParams(prev); p.set('date', d); return p; })} />
       </div>
 
       <div className="flex items-center justify-between mb-4">
