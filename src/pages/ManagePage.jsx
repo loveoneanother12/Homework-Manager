@@ -57,7 +57,7 @@ function StudentForm({ onSave, onCancel, saving }) {
             onChange={e => setForm(f => ({ ...f, grade: e.target.value }))}
             className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
             <option value="">학년 선택</option>
-            {['초1','초2','초3','초4','초5','초6','중1','중2','중3','고1','고2','고3','N수'].map(g => (
+            {['초1','초2','초3','초4','초5','초6','중1','중2','중3'].map(g => (
               <option key={g} value={g}>{g}</option>
             ))}
           </select>

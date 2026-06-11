@@ -3,7 +3,7 @@ import { useParams } from 'react-router-dom';
 import { getStudent, updateStudent, getRecordsByStudent, getClasses, getUnits } from '../lib/store.js';
 import GradingCard from '../components/GradingCard.jsx';
 
-const GRADES = ['초1','초2','초3','초4','초5','초6','중1','중2','중3','고1','고2','고3','N수'];
+const GRADES = ['초1','초2','초3','초4','초5','초6','중1','중2','중3'];
 
 function EditStudentForm({ student, onSave, onCancel, saving }) {
   const [form, setForm] = useState({ name: student.name, grade: student.grade ?? '' });
