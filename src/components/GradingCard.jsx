@@ -52,14 +52,13 @@ const GradingCard = forwardRef(function GradingCard({ record, student, unit, sec
       ref={ref}
       style={{
         width: CARD_W,
-        height: CARD_H,
+        minHeight: CARD_H,
         background: '#fff',
         border: '1.5px solid #d1d5db',
         borderRadius: 8,
         padding: 14,
         fontFamily: "'Noto Sans KR', 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif",
         position: 'relative',
-        overflow: 'hidden',
         boxSizing: 'border-box',
       }}
     >
@@ -111,10 +110,10 @@ const GradingCard = forwardRef(function GradingCard({ record, student, unit, sec
                 <textarea
                   value={displayComment}
                   onChange={e => onCommentChange?.(record.id, e.target.value)}
-                  style={{ height: 80, fontSize: 11, lineHeight: 1.6, color: '#1f2937', border: '1px solid #d1d5db', borderRadius: 4, padding: 6, resize: 'none', fontFamily: 'inherit', background: '#f9fafb' }}
+                  style={{ height: 80, fontSize: 10, lineHeight: 1.6, color: '#1f2937', border: '1px solid #d1d5db', borderRadius: 4, padding: 5, resize: 'none', fontFamily: 'inherit', background: '#f9fafb' }}
                 />
               ) : (
-                <div style={{ height: 80, fontSize: 11, lineHeight: 1.7, color: '#1f2937', background: '#f9fafb', borderRadius: 4, padding: 6, border: '1px solid #e5e7eb', wordBreak: 'keep-all', overflow: 'hidden' }}>
+                <div style={{ fontSize: 9, lineHeight: 1.55, color: '#1f2937', background: '#f9fafb', borderRadius: 4, padding: 5, border: '1px solid #e5e7eb', wordBreak: 'keep-all' }}>
                   {displayComment}
                 </div>
               )}
@@ -124,10 +123,10 @@ const GradingCard = forwardRef(function GradingCard({ record, student, unit, sec
                 <textarea
                   value={displayComment2}
                   onChange={e => onCommentChange2?.(secondRecord.id, e.target.value)}
-                  style={{ height: 72, fontSize: 11, lineHeight: 1.6, color: '#1f2937', border: '1px solid #d1d5db', borderRadius: 4, padding: 6, resize: 'none', fontFamily: 'inherit', background: '#f9fafb' }}
+                  style={{ height: 72, fontSize: 10, lineHeight: 1.6, color: '#1f2937', border: '1px solid #d1d5db', borderRadius: 4, padding: 5, resize: 'none', fontFamily: 'inherit', background: '#f9fafb' }}
                 />
               ) : (
-                <div style={{ height: 72, fontSize: 11, lineHeight: 1.7, color: '#1f2937', background: '#f9fafb', borderRadius: 4, padding: 6, border: '1px solid #e5e7eb', wordBreak: 'keep-all', overflow: 'hidden' }}>
+                <div style={{ fontSize: 9, lineHeight: 1.55, color: '#1f2937', background: '#f9fafb', borderRadius: 4, padding: 5, border: '1px solid #e5e7eb', wordBreak: 'keep-all' }}>
                   {displayComment2}
                 </div>
               )}
@@ -139,10 +138,10 @@ const GradingCard = forwardRef(function GradingCard({ record, student, unit, sec
                 <textarea
                   value={displayComment}
                   onChange={e => onCommentChange?.(record.id, e.target.value)}
-                  style={{ flex: 1, fontSize: 11, lineHeight: 1.6, color: '#1f2937', border: '1px solid #d1d5db', borderRadius: 4, padding: 6, resize: 'none', fontFamily: 'inherit', background: '#f9fafb' }}
+                  style={{ flex: 1, minHeight: 80, fontSize: 10, lineHeight: 1.6, color: '#1f2937', border: '1px solid #d1d5db', borderRadius: 4, padding: 5, resize: 'none', fontFamily: 'inherit', background: '#f9fafb' }}
                 />
               ) : (
-                <div style={{ flex: 1, fontSize: 11, lineHeight: 1.7, color: '#1f2937', background: '#f9fafb', borderRadius: 4, padding: 6, border: '1px solid #e5e7eb', wordBreak: 'keep-all' }}>
+                <div style={{ fontSize: 9, lineHeight: 1.55, color: '#1f2937', background: '#f9fafb', borderRadius: 4, padding: 5, border: '1px solid #e5e7eb', wordBreak: 'keep-all' }}>
                   {displayComment}
                 </div>
               )}
