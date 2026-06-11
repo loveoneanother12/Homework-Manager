@@ -52,7 +52,7 @@ const GradingCard = forwardRef(function GradingCard({ record, student, unit, sec
       ref={ref}
       style={{
         width: CARD_W,
-        minHeight: CARD_H,
+        minHeight: 160,
         background: '#fff',
         border: '1.5px solid #d1d5db',
         borderRadius: 8,
@@ -101,7 +101,7 @@ const GradingCard = forwardRef(function GradingCard({ record, student, unit, sec
         </div>
 
         {/* 우: 코멘트 */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+        <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
           {hasSecond ? (
             <>
               <div style={{ fontSize: 9, fontWeight: 600, color: '#6b7280', marginBottom: 2 }}>이번 과제 코멘트</div>
@@ -112,7 +112,7 @@ const GradingCard = forwardRef(function GradingCard({ record, student, unit, sec
                   style={{ height: 80, fontSize: 10, lineHeight: 1.6, color: '#1f2937', border: '1px solid #d1d5db', borderRadius: 4, padding: 5, resize: 'none', fontFamily: 'inherit', background: '#f9fafb' }}
                 />
               ) : (
-                <div style={{ fontSize: 9, lineHeight: 1.55, color: '#1f2937', background: '#f9fafb', borderRadius: 4, padding: 5, border: '1px solid #e5e7eb', wordBreak: 'keep-all' }}>
+                <div style={{ fontSize: 9, lineHeight: 1.55, color: '#1f2937', background: '#f9fafb', borderRadius: 4, padding: 5, border: '1px solid #e5e7eb', overflowWrap: 'break-word' }}>
                   {displayComment}
                 </div>
               )}
@@ -125,7 +125,7 @@ const GradingCard = forwardRef(function GradingCard({ record, student, unit, sec
                   style={{ height: 72, fontSize: 10, lineHeight: 1.6, color: '#1f2937', border: '1px solid #d1d5db', borderRadius: 4, padding: 5, resize: 'none', fontFamily: 'inherit', background: '#f9fafb' }}
                 />
               ) : (
-                <div style={{ fontSize: 9, lineHeight: 1.55, color: '#1f2937', background: '#f9fafb', borderRadius: 4, padding: 5, border: '1px solid #e5e7eb', wordBreak: 'keep-all' }}>
+                <div style={{ fontSize: 9, lineHeight: 1.55, color: '#1f2937', background: '#f9fafb', borderRadius: 4, padding: 5, border: '1px solid #e5e7eb', overflowWrap: 'break-word' }}>
                   {displayComment2}
                 </div>
               )}
@@ -140,7 +140,7 @@ const GradingCard = forwardRef(function GradingCard({ record, student, unit, sec
                   style={{ flex: 1, minHeight: 80, fontSize: 10, lineHeight: 1.6, color: '#1f2937', border: '1px solid #d1d5db', borderRadius: 4, padding: 5, resize: 'none', fontFamily: 'inherit', background: '#f9fafb' }}
                 />
               ) : (
-                <div style={{ fontSize: 9, lineHeight: 1.55, color: '#1f2937', background: '#f9fafb', borderRadius: 4, padding: 5, border: '1px solid #e5e7eb', wordBreak: 'keep-all' }}>
+                <div style={{ fontSize: 9, lineHeight: 1.55, color: '#1f2937', background: '#f9fafb', borderRadius: 4, padding: 5, border: '1px solid #e5e7eb', overflowWrap: 'break-word' }}>
                   {displayComment}
                 </div>
               )}
