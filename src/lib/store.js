@@ -89,6 +89,12 @@ export async function addStudent(data) {
   return s;
 }
 
+export async function updateStudent(id, updates) {
+  const { data: s, error } = await supabase.from('hw_students').update(updates).eq('id', id).select().single();
+  if (error) throw error;
+  return s;
+}
+
 export async function deleteStudent(id) {
   await supabase.from('hw_homework_records').delete().eq('student_id', id);
   await supabase.from('hw_class_students').delete().eq('student_id', id);

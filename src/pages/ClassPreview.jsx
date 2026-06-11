@@ -117,7 +117,7 @@ export default function ClassPreview() {
   return (
     <div>
       <div className="flex items-center gap-3 mb-6">
-        <button onClick={() => navigate(-1)} className="text-gray-400 hover:text-gray-600 text-sm">← 학생 목록</button>
+        <button onClick={() => navigate(`/class/${className}?date=${sessionDate}`)} className="text-gray-400 hover:text-gray-600 text-sm">← 학생 목록</button>
         <h1 className="text-xl font-bold text-gray-900">{decoded} — 평가서 미리보기</h1>
       </div>
 

@@ -32,6 +32,51 @@ function DayToggle({ value, onChange }) {
   );
 }
 
+function StudentForm({ onSave, onCancel, saving }) {
+  const [form, setForm] = useState({ name: '', grade: '' });
+
+  return (
+    <form onSubmit={e => { e.preventDefault(); onSave(form); }}
+      className="bg-white border border-indigo-100 rounded-xl p-5 mb-4 shadow-sm space-y-4">
+      <h3 className="font-semibold text-gray-800">새 학생 추가</h3>
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className="block text-xs font-medium text-gray-600 mb-1">학생 이름</label>
+          <input
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            value={form.name}
+            onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+            placeholder="예: 홍길동"
+            autoFocus
+            required />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-gray-600 mb-1">학년</label>
+          <select
+            value={form.grade}
+            onChange={e => setForm(f => ({ ...f, grade: e.target.value }))}
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+            <option value="">학년 선택</option>
+            {['초1','초2','초3','초4','초5','초6','중1','중2','중3','고1','고2','고3','N수'].map(g => (
+              <option key={g} value={g}>{g}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+      <div className="flex gap-2">
+        <button type="submit" disabled={saving || !form.name.trim()}
+          className="px-5 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 disabled:opacity-50 transition-colors">
+          {saving ? '저장 중…' : '추가'}
+        </button>
+        <button type="button" onClick={onCancel}
+          className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm hover:bg-gray-200 transition-colors">
+          취소
+        </button>
+      </div>
+    </form>
+  );
+}
+
 function ClassForm({ initial, onSave, onCancel, saving }) {
   const [form, setForm] = useState({
     class_name:   initial?.class_name   ?? '',
@@ -96,7 +141,7 @@ export default function ManagePage() {
   const [memberSearch, setMemberSearch] = useState('');
 
   // 학생 풀 관리
-  const [newStudent, setNewStudent] = useState({ name: '', grade: '' });
+  const [studentFormOpen, setStudentFormOpen] = useState(false);
   const [studentSaving, setStudentSaving] = useState(false);
 
   async function loadData() {
@@ -200,14 +245,13 @@ export default function ManagePage() {
 
   // ── 학생 풀 핸들러 ────────────────────────────────────────────────────────
 
-  async function handleAddStudent(e) {
-    e.preventDefault();
-    if (!newStudent.name.trim()) return;
+  async function handleAddStudent(form) {
+    if (!form.name.trim()) return;
     setStudentSaving(true);
     try {
-      const s = await addStudent({ name: newStudent.name.trim(), grade: newStudent.grade || null });
+      const s = await addStudent({ name: form.name.trim(), grade: form.grade || null });
       setAllStudents(prev => [...prev, s].sort((a, b) => a.name.localeCompare(b.name, 'ko')));
-      setNewStudent({ name: '', grade: '' });
+      setStudentFormOpen(false);
     } finally { setStudentSaving(false); }
   }
 
@@ -381,29 +425,20 @@ export default function ManagePage() {
       <section>
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold text-gray-800">학생 관리</h2>
-          <form onSubmit={handleAddStudent} className="flex gap-2 items-center flex-wrap justify-end">
-            <input
-              type="text"
-              value={newStudent.name}
-              onChange={e => setNewStudent(f => ({ ...f, name: e.target.value }))}
-              placeholder="학생 이름"
-              className="border border-gray-300 rounded-lg px-3 py-2 text-sm w-28 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            />
-            <select
-              value={newStudent.grade}
-              onChange={e => setNewStudent(f => ({ ...f, grade: e.target.value }))}
-              className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
-              <option value="">학년 선택</option>
-              {['초1','초2','초3','초4','초5','초6','중1','중2','중3','고1','고2','고3','N수'].map(g => (
-                <option key={g} value={g}>{g}</option>
-              ))}
-            </select>
-            <button type="submit" disabled={studentSaving || !newStudent.name.trim()}
-              className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 disabled:opacity-50 transition-colors">
-              {studentSaving ? '저장 중…' : '+ 추가'}
-            </button>
-          </form>
+          <button
+            onClick={() => { setStudentFormOpen(true); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+            className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors">
+            + 학생 추가
+          </button>
         </div>
+
+        {studentFormOpen && (
+          <StudentForm
+            onSave={handleAddStudent}
+            onCancel={() => setStudentFormOpen(false)}
+            saving={studentSaving}
+          />
+        )}
 
         {allStudents.length === 0 ? (
           <div className="text-center py-10 text-gray-400 text-sm bg-gray-50 rounded-xl">

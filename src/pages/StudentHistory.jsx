@@ -1,7 +1,49 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { getStudent, getRecordsByStudent, getClasses, getUnits } from '../lib/store.js';
+import { getStudent, updateStudent, getRecordsByStudent, getClasses, getUnits } from '../lib/store.js';
 import GradingCard from '../components/GradingCard.jsx';
+
+const GRADES = ['초1','초2','초3','초4','초5','초6','중1','중2','중3','고1','고2','고3','N수'];
+
+function EditStudentForm({ student, onSave, onCancel, saving }) {
+  const [form, setForm] = useState({ name: student.name, grade: student.grade ?? '' });
+  return (
+    <form onSubmit={e => { e.preventDefault(); onSave(form); }}
+      className="mt-3 bg-white border border-indigo-100 rounded-xl p-5 shadow-sm space-y-4">
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className="block text-xs font-medium text-gray-600 mb-1">학생 이름</label>
+          <input
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            value={form.name}
+            onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+            autoFocus
+            required />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-gray-600 mb-1">학년</label>
+          <select
+            value={form.grade}
+            onChange={e => setForm(f => ({ ...f, grade: e.target.value }))}
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+            <option value="">학년 선택</option>
+            {GRADES.map(g => <option key={g} value={g}>{g}</option>)}
+          </select>
+        </div>
+      </div>
+      <div className="flex gap-2">
+        <button type="submit" disabled={saving || !form.name.trim()}
+          className="px-5 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 disabled:opacity-50 transition-colors">
+          {saving ? '저장 중…' : '저장'}
+        </button>
+        <button type="button" onClick={onCancel}
+          className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm hover:bg-gray-200 transition-colors">
+          취소
+        </button>
+      </div>
+    </form>
+  );
+}
 
 export default function StudentHistory() {
   const { studentId } = useParams();
@@ -9,6 +51,8 @@ export default function StudentHistory() {
   const [groups, setGroups] = useState([]); // [{cls, records: [{...r, _unit}]}]
   const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -47,6 +91,15 @@ export default function StudentHistory() {
     })();
   }, [studentId]);
 
+  async function handleSave(form) {
+    setSaving(true);
+    try {
+      const updated = await updateStudent(student.id, { name: form.name.trim(), grade: form.grade || null });
+      setStudent(updated);
+      setEditing(false);
+    } finally { setSaving(false); }
+  }
+
   if (loading) return (
     <div className="flex items-center justify-center min-h-screen text-gray-400 text-sm">
       불러오는 중…
@@ -63,17 +116,34 @@ export default function StudentHistory() {
     <div className="max-w-5xl mx-auto px-6 py-8">
       {/* 헤더 */}
       <div className="mb-8 pb-5 border-b border-gray-200">
-        <div className="flex items-baseline gap-3">
-          <h1 className="text-2xl font-bold text-gray-900">{student.name}</h1>
-          {student.grade && (
-            <span className="text-sm font-medium text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded">
-              {student.grade}
-            </span>
+        <div className="flex items-center gap-3">
+          <div className="flex items-baseline gap-3 flex-1">
+            <h1 className="text-2xl font-bold text-gray-900">{student.name}</h1>
+            {student.grade && (
+              <span className="text-sm font-medium text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded">
+                {student.grade}
+              </span>
+            )}
+          </div>
+          {!editing && (
+            <button
+              onClick={() => setEditing(true)}
+              className="px-3 py-1.5 text-xs text-indigo-600 bg-indigo-50 rounded-lg hover:bg-indigo-100 transition-colors font-medium">
+              수정
+            </button>
           )}
         </div>
         <p className="mt-1 text-sm text-gray-400">
           {totalCount > 0 ? `총 ${totalCount}건의 채점 기록` : '채점 기록이 없습니다.'}
         </p>
+        {editing && (
+          <EditStudentForm
+            student={student}
+            onSave={handleSave}
+            onCancel={() => setEditing(false)}
+            saving={saving}
+          />
+        )}
       </div>
 
       {groups.length === 0 && (

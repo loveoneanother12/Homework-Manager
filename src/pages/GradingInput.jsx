@@ -520,7 +520,7 @@ export default function GradingInput() {
   return (
     <div className="max-w-2xl mx-auto space-y-5">
       <div className="flex items-center gap-3">
-        <button onClick={() => navigate(-1)} className="text-gray-400 hover:text-gray-600 text-sm">← 뒤로</button>
+        <button onClick={() => navigate(`/class/${encodeURIComponent(className)}?date=${sessionDate}`)} className="text-gray-400 hover:text-gray-600 text-sm">← 학생 목록</button>
         <h1 className="text-xl font-bold text-gray-900">{student.name}</h1>
         {className && <span className="text-sm text-gray-400">{className}</span>}
       </div>
