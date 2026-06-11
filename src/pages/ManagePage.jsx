@@ -139,10 +139,12 @@ export default function ManagePage() {
   const [classStudents, setClassStudents] = useState([]);
   const [classStudentsLoading, setClassStudentsLoading] = useState(false);
   const [memberSearch, setMemberSearch] = useState('');
+  const [classSearch, setClassSearch] = useState('');
 
   // 학생 풀 관리
   const [studentFormOpen, setStudentFormOpen] = useState(false);
   const [studentSaving, setStudentSaving] = useState(false);
+  const [studentSearch, setStudentSearch] = useState('');
 
   async function loadData() {
     const [cls, students, mems] = await Promise.all([
@@ -277,11 +279,20 @@ export default function ManagePage() {
       <section>
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold text-gray-800">반 관리</h2>
-          <button
-            onClick={() => { setEditTarget(null); setClassFormMode('add'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-            className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors">
-            + 반 추가
-          </button>
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              value={classSearch}
+              onChange={e => setClassSearch(e.target.value)}
+              placeholder="반 이름 검색…"
+              className="border border-gray-300 rounded-lg px-3 py-2 text-sm w-36 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+            <button
+              onClick={() => { setEditTarget(null); setClassFormMode('add'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+              className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors">
+              + 반 추가
+            </button>
+          </div>
         </div>
 
         {(classFormMode === 'add' || classFormMode === 'edit') && (
@@ -300,7 +311,7 @@ export default function ManagePage() {
           </div>
         ) : (
           <div className="border border-gray-200 rounded-xl overflow-hidden">
-            {classes.map((cls, idx) => {
+            {classes.filter(c => !classSearch.trim() || c.class_name.includes(classSearch.trim())).map((cls, idx) => {
               const days = cls.days_of_week?.split(',').filter(Boolean) ?? [];
               const count = classStudentCounts[cls.id] ?? 0;
               const isExpanded = expandedClassId === cls.id;
@@ -425,11 +436,20 @@ export default function ManagePage() {
       <section>
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold text-gray-800">학생 관리</h2>
-          <button
-            onClick={() => { setStudentFormOpen(true); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-            className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors">
-            + 학생 추가
-          </button>
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              value={studentSearch}
+              onChange={e => setStudentSearch(e.target.value)}
+              placeholder="학생 이름 검색…"
+              className="border border-gray-300 rounded-lg px-3 py-2 text-sm w-36 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+            <button
+              onClick={() => { setStudentFormOpen(true); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+              className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors">
+              + 학생 추가
+            </button>
+          </div>
         </div>
 
         {studentFormOpen && (
@@ -446,7 +466,7 @@ export default function ManagePage() {
           </div>
         ) : (
           <div className="bg-white border border-gray-200 rounded-xl divide-y divide-gray-100 overflow-hidden">
-            {allStudents.map(s => {
+            {allStudents.filter(s => !studentSearch.trim() || s.name.includes(studentSearch.trim())).map(s => {
               const classNames = studentClassNames[s.id] ?? [];
               return (
                 <div key={s.id} className="flex items-center px-5 py-3 gap-3">
