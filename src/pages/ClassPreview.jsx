@@ -7,9 +7,10 @@ import { getClassByName, getStudentsByClassId, getRecordsByStudentIds, getSecond
 import { today } from '../lib/dateUtils.js';
 import DateSelector from '../components/DateSelector.jsx';
 
-const A4_W = 210, A4_H = 297, MARGIN = 5;
-const CARD_MM_W = (A4_W - MARGIN * 2) / 2;
-const CARD_MM_H = (A4_H - MARGIN * 2) / 3;
+const A4_W = 210, MARGIN = 5;
+const CARD_MM_W = (A4_W - MARGIN * 2) / 2; // 100mm = 10cm
+const CARD_MM_H = 50;                        // 50mm = 5cm
+const CARDS_PER_PAGE = 10;                   // 2cols × 5rows
 
 export default function ClassPreview() {
   const { className } = useParams();
@@ -23,6 +24,7 @@ export default function ClassPreview() {
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
   const cardRefs = useRef({});
+  const pdfCardRefs = useRef({});
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -87,13 +89,13 @@ export default function ClassPreview() {
       const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
       for (let i = 0; i < withRecords.length; i++) {
         const entry = withRecords[i];
-        if (i > 0 && i % 6 === 0) pdf.addPage();
-        const pos = i % 6;
+        if (i > 0 && i % CARDS_PER_PAGE === 0) pdf.addPage();
+        const pos = i % CARDS_PER_PAGE;
         const col = pos % 2;
         const row = Math.floor(pos / 2);
         const x = MARGIN + col * CARD_MM_W;
         const y = MARGIN + row * CARD_MM_H;
-        const el = cardRefs.current[entry.student.id];
+        const el = pdfCardRefs.current[entry.student.id];
         if (!el) continue;
         const canvas = await html2canvas(el, { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false });
         pdf.addImage(canvas.toDataURL('image/png'), 'PNG', x + 0.5, y + 0.5, CARD_MM_W - 1, CARD_MM_H - 1);
@@ -159,6 +161,21 @@ export default function ClassPreview() {
           ))}
         </div>
       )}
+
+      {/* PDF 캡처 전용 비표시 카드 (editable=false → div 자동 높이, textarea 미사용) */}
+      <div style={{ position: 'absolute', left: '-9999px', top: 0, pointerEvents: 'none' }}>
+        {withRecords.map(entry => (
+          <GradingCard
+            key={`pdf-${entry.student.id}`}
+            ref={el => { pdfCardRefs.current[entry.student.id] = el; }}
+            record={entry.record}
+            student={entry.student}
+            unit={entry.unit}
+            secondRecord={entry.secondRecord}
+            editable={false}
+          />
+        ))}
+      </div>
     </div>
   );
 }
