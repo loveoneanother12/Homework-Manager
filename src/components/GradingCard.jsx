@@ -84,9 +84,8 @@ const GradingCard = forwardRef(function GradingCard({ record, student, unit, sec
           <KpiRow label="정답률" rate={kpi1.accuracy_rate} color="#10b981" />
           <div style={{ marginTop: 6, fontSize: 10, color: '#6b7280', marginBottom: 2 }}>오답 유형</div>
           <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-            {kpi1.not_attempted_rate > 0 && <span style={{ fontSize: 9, padding: '1px 5px', background: '#fef3c7', color: '#92400e', borderRadius: 6 }}>안 푼 {pct(kpi1.not_attempted_rate)}</span>}
-            {kpi1.gave_up_rate > 0 && <span style={{ fontSize: 9, padding: '1px 5px', background: '#fee2e2', color: '#991b1b', borderRadius: 6 }}>손 못 댐 {pct(kpi1.gave_up_rate)}</span>}
-            {kpi1.wrong_rate > 0 && <span style={{ fontSize: 9, padding: '1px 5px', background: '#e0e7ff', color: '#3730a3', borderRadius: 6 }}>틀림 {pct(kpi1.wrong_rate)}</span>}
+            {kpi1.gave_up_rate > 0 && <span style={{ fontSize: 9, padding: '1px 5px', background: '#fee2e2', color: '#991b1b', borderRadius: 6 }}>미완결 {pct(kpi1.gave_up_rate)}</span>}
+            {kpi1.wrong_rate > 0 && <span style={{ fontSize: 9, padding: '1px 5px', background: '#e0e7ff', color: '#3730a3', borderRadius: 6 }}>오답 {pct(kpi1.wrong_rate)}</span>}
           </div>
           <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 5, fontSize: 10, color: '#6b7280' }}>
             서술 <ScorePill value={record.process_score} />
