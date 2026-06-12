@@ -525,14 +525,7 @@ export default function ManagePage() {
                     className="font-medium text-indigo-700 hover:underline w-20 flex-shrink-0">
                     {s.name}
                   </Link>
-                  {s.grade
-                    ? <span className="text-xs text-gray-600 bg-gray-100 px-2 py-0.5 rounded flex-shrink-0">{s.grade}</span>
-                    : <span className="w-10 flex-shrink-0" />
-                  }
-                  {s.school && (
-                    <span className="text-xs text-gray-500 flex-shrink-0">{s.school}</span>
-                  )}
-                  <div className="flex-1 flex gap-1.5 flex-wrap">
+                  <div className="flex gap-1.5 flex-wrap flex-shrink-0">
                     {classNames.length > 0
                       ? classNames.map(cn => (
                           <span key={cn} className="text-xs bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-full">{cn}</span>
@@ -540,6 +533,14 @@ export default function ManagePage() {
                       : <span className="text-xs text-gray-400">미배정</span>
                     }
                   </div>
+                  <span className="w-px h-4 bg-gray-300 flex-shrink-0" />
+                  {s.school && (
+                    <span className="text-xs text-gray-500 flex-shrink-0">{s.school}</span>
+                  )}
+                  {s.grade && (
+                    <span className="text-xs text-gray-600 bg-gray-100 px-2 py-0.5 rounded flex-shrink-0">{s.grade}</span>
+                  )}
+                  <span className="flex-1" />
                   <button onClick={() => askDeleteStudent(s)}
                     className="px-3 py-1.5 text-xs text-gray-500 bg-gray-50 rounded hover:bg-red-50 hover:text-red-600 transition-colors flex-shrink-0">
                     삭제

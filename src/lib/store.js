@@ -174,6 +174,41 @@ export async function getAllClassMemberships() {
   return (data ?? []).map(({ class_id, student_id }) => ({ class_id, student_id }));
 }
 
+// ── 수업일 상태 (숙제 없음 / 결석) ────────────────────────────────────────────
+
+export async function getNoHomework(classId, sessionDate) {
+  const { data } = await supabase.from('hw_class_sessions').select('no_homework')
+    .eq('class_id', classId).eq('session_date', sessionDate).maybeSingle();
+  return data?.no_homework ?? false;
+}
+
+export async function setNoHomework(classId, sessionDate, value) {
+  const { error } = await supabase.from('hw_class_sessions')
+    .upsert({ class_id: classId, session_date: sessionDate, no_homework: value },
+            { onConflict: 'class_id,session_date' });
+  if (error) throw error;
+}
+
+export async function getAbsentStudentIds(classId, sessionDate) {
+  const { data, error } = await supabase.from('hw_absences').select('student_id')
+    .eq('class_id', classId).eq('session_date', sessionDate);
+  if (error) throw error;
+  return (data ?? []).map(r => r.student_id);
+}
+
+export async function setAbsence(classId, studentId, sessionDate, value) {
+  if (value) {
+    const { error } = await supabase.from('hw_absences')
+      .upsert({ class_id: classId, student_id: studentId, session_date: sessionDate },
+              { onConflict: 'class_id,student_id,session_date' });
+    if (error) throw error;
+  } else {
+    const { error } = await supabase.from('hw_absences').delete()
+      .eq('class_id', classId).eq('student_id', studentId).eq('session_date', sessionDate);
+    if (error) throw error;
+  }
+}
+
 // ── 단원 프리셋 ───────────────────────────────────────────────────────────────
 
 export async function getUnits() {
@@ -266,7 +301,27 @@ export async function getPendingSecondRoundRecords(studentId, beforeDate, classI
   if (classId) q = q.eq('class_id', classId);
   const { data, error } = await q;
   if (error) throw error;
-  return (data ?? []).map(withKpi);
+  let records = data ?? [];
+
+  // 결석했거나 숙제가 없던 날짜의 기록은 2차 채점 대상에서 제외 —
+  // 목록이 날짜 내림차순이므로 자연히 그 이전 회차로 거슬러 올라간다.
+  // (해당 날짜에 기록 자체가 없는 일반적인 경우는 위 쿼리에서 이미 건너뛰어짐)
+  if (classId && records.length) {
+    const dates = [...new Set(records.map(r => r.session_date))];
+    const [noHwRes, absRes] = await Promise.all([
+      supabase.from('hw_class_sessions').select('session_date')
+        .eq('class_id', classId).eq('no_homework', true).in('session_date', dates),
+      supabase.from('hw_absences').select('session_date')
+        .eq('class_id', classId).eq('student_id', studentId).in('session_date', dates),
+    ]);
+    if (noHwRes.error) throw noHwRes.error;
+    if (absRes.error) throw absRes.error;
+    const excluded = new Set(
+      [...(noHwRes.data ?? []), ...(absRes.data ?? [])].map(r => r.session_date)
+    );
+    records = records.filter(r => !excluded.has(r.session_date));
+  }
+  return records.map(withKpi);
 }
 
 export async function getRecordsByStudentIds(ids, sessionDate = null, classId = null) {

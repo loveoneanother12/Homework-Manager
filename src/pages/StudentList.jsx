@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react';
 import { Link, useParams, useNavigate, useSearchParams, useLocation } from 'react-router-dom';
-import { getClassByName, getStudentsByClassId, getRecordsByStudentIds, getUnits } from '../lib/store.js';
+import {
+  getClassByName, getStudentsByClassId, getRecordsByStudentIds, getUnits,
+  getNoHomework, setNoHomework, getAbsentStudentIds, setAbsence,
+} from '../lib/store.js';
 import { pct } from '../lib/kpi.js';
 import { today } from '../lib/dateUtils.js';
 import DateSelector from '../components/DateSelector.jsx';
@@ -17,6 +20,8 @@ export default function StudentList() {
   const [entries, setEntries] = useState([]); // [{student, record, unit}]
   const [loading, setLoading] = useState(true);
   const [classId, setClassId] = useState(null);
+  const [noHomework, setNoHomeworkFlag] = useState(false);
+  const [absentIds, setAbsentIds] = useState(new Set());
 
   async function refresh() {
     setLoading(true);
@@ -25,10 +30,14 @@ export default function StudentList() {
       const resolvedClassId = cls?.id ?? null;
       setClassId(resolvedClassId);
       const students = resolvedClassId ? await getStudentsByClassId(resolvedClassId) : [];
-      const [allRecords, units] = await Promise.all([
+      const [allRecords, units, noHw, absentList] = await Promise.all([
         getRecordsByStudentIds(students.map(s => s.id), sessionDate, resolvedClassId),
         getUnits(),
+        resolvedClassId ? getNoHomework(resolvedClassId, sessionDate) : false,
+        resolvedClassId ? getAbsentStudentIds(resolvedClassId, sessionDate) : [],
       ]);
+      setNoHomeworkFlag(noHw);
+      setAbsentIds(new Set(absentList));
       const unitsById = Object.fromEntries(units.map(u => [u.id, u]));
 
       setEntries(students.map(student => {
@@ -46,6 +55,22 @@ export default function StudentList() {
   }
 
   useEffect(() => { refresh(); }, [decoded, sessionDate, locationKey]);
+
+  async function toggleNoHomework() {
+    const next = !noHomework;
+    setNoHomeworkFlag(next);
+    await setNoHomework(classId, sessionDate, next);
+  }
+
+  async function toggleAbsence(studentId) {
+    const next = !absentIds.has(studentId);
+    setAbsentIds(prev => {
+      const s = new Set(prev);
+      if (next) s.add(studentId); else s.delete(studentId);
+      return s;
+    });
+    await setAbsence(classId, studentId, sessionDate, next);
+  }
 
   const gradingLink = (studentId) => `/student/${studentId}/grade?date=${sessionDate}&class=${encodeURIComponent(decoded)}`;
   const previewLink = `/class/${className}/preview?date=${sessionDate}`;
@@ -68,7 +93,17 @@ export default function StudentList() {
       </div>
 
       <div className="flex justify-between items-center mb-4">
-        <p className="text-sm text-gray-500">학생 {entries.length}명</p>
+        <div className="flex items-center gap-4">
+          <p className="text-sm text-gray-500">학생 {entries.length}명</p>
+          <button type="button" onClick={toggleNoHomework} className="flex items-center gap-2 flex-shrink-0">
+            <div className={`relative w-9 h-5 rounded-full transition-colors duration-200 ${noHomework ? 'bg-amber-500' : 'bg-gray-300'}`}>
+              <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all duration-200 ${noHomework ? 'left-4' : 'left-0.5'}`} />
+            </div>
+            <span className={`text-xs font-medium whitespace-nowrap transition-colors ${noHomework ? 'text-amber-600' : 'text-gray-500'}`}>
+              숙제 없음
+            </span>
+          </button>
+        </div>
         <Link
           to={previewLink}
           className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 transition-colors"
@@ -77,43 +112,63 @@ export default function StudentList() {
         </Link>
       </div>
 
+      {noHomework && (
+        <div className="mb-4 bg-amber-50 border border-amber-200 rounded-lg px-4 py-2 text-sm text-amber-700">
+          이 날짜는 숙제가 없는 날로 저장되었습니다.
+        </div>
+      )}
+
       {entries.length === 0 ? (
         <div className="text-center py-16 text-gray-400 text-sm">이 반에 학생이 없습니다.</div>
       ) : (
         <div className="bg-white rounded-xl border border-gray-200 divide-y divide-gray-100">
-          {entries.map(({ student, record, unit }) => (
-            <div key={student.id} className="flex items-center px-5 py-4 gap-4">
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="font-medium text-gray-900">{student.name}</span>
-                  {student.grade && <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded">{student.grade}</span>}
-                  {record?.clinic_flag && (
-                    <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full font-medium">클리닉</span>
+          {entries.map(({ student, record, unit }) => {
+            const isAbsent = absentIds.has(student.id);
+            return (
+              <div key={student.id} className="flex items-center px-5 py-4 gap-4">
+                <div className={`flex-1 min-w-0 ${isAbsent ? 'opacity-50' : ''}`}>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-medium text-gray-900">{student.name}</span>
+                    {student.grade && <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded">{student.grade}</span>}
+                    {isAbsent && (
+                      <span className="text-xs bg-red-100 text-red-600 px-2 py-0.5 rounded-full font-medium">결석</span>
+                    )}
+                    {record?.clinic_flag && (
+                      <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full font-medium">클리닉</span>
+                    )}
+                  </div>
+                  {record ? (
+                    <div className="text-xs text-gray-500 mt-1 flex gap-3 flex-wrap">
+                      <span>{unit?.unit_name ?? '단원 없음'}</span>
+                      <span className={record._kpi2 ? 'text-emerald-600 font-medium' : ''}>
+                        {record._kpi2 ? '1차+2차' : '1차'}
+                      </span>
+                      <span>이행률 {pct(record._kpi1?.completion_rate ?? 0)}</span>
+                      <span>정답률 {pct(record._kpi1?.accuracy_rate ?? 0)}</span>
+                    </div>
+                  ) : (
+                    <div className="text-xs text-gray-400 mt-1">이 날짜 채점 기록 없음</div>
                   )}
                 </div>
-                {record ? (
-                  <div className="text-xs text-gray-500 mt-1 flex gap-3 flex-wrap">
-                    <span>{unit?.unit_name ?? '단원 없음'}</span>
-                    <span className={record._kpi2 ? 'text-emerald-600 font-medium' : ''}>
-                      {record._kpi2 ? '1차+2차' : '1차'}
-                    </span>
-                    <span>이행률 {pct(record._kpi1?.completion_rate ?? 0)}</span>
-                    <span>정답률 {pct(record._kpi1?.accuracy_rate ?? 0)}</span>
+                <button type="button" onClick={() => toggleAbsence(student.id)} className="flex items-center gap-1.5 flex-shrink-0">
+                  <div className={`relative w-9 h-5 rounded-full transition-colors duration-200 ${isAbsent ? 'bg-red-500' : 'bg-gray-300'}`}>
+                    <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all duration-200 ${isAbsent ? 'left-4' : 'left-0.5'}`} />
                   </div>
-                ) : (
-                  <div className="text-xs text-gray-400 mt-1">이 날짜 채점 기록 없음</div>
-                )}
+                  <span className={`text-xs font-medium transition-colors ${isAbsent ? 'text-red-600' : 'text-gray-400'}`}>
+                    결석
+                  </span>
+                </button>
+                <div className="flex gap-2">
+                  <Link
+                    to={gradingLink(student.id)}
+                    className="px-3 py-1.5 bg-indigo-50 text-indigo-700 rounded text-xs font-medium hover:bg-indigo-100 transition-colors"
+                  >
+                    채점 입력
+                  </Link>
+                </div>
               </div>
-              <div className="flex gap-2">
-                <Link
-                  to={gradingLink(student.id)}
-                  className="px-3 py-1.5 bg-indigo-50 text-indigo-700 rounded text-xs font-medium hover:bg-indigo-100 transition-colors"
-                >
-                  채점 입력
-                </Link>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

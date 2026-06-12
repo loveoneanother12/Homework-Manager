@@ -3,7 +3,7 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 import GradingCard, { CARD_W, CARD_H } from '../components/GradingCard.jsx';
-import { getClassByName, getStudentsByClassId, getRecordsByStudentIds, getSecondRoundsByDate, getUnits, updateRecordComment, updateRecordComment2 } from '../lib/store.js';
+import { getClassByName, getStudentsByClassId, getRecordsByStudentIds, getSecondRoundsByDate, getUnits, updateRecordComment, updateRecordComment2, getAbsentStudentIds } from '../lib/store.js';
 import { today } from '../lib/dateUtils.js';
 import DateSelector from '../components/DateSelector.jsx';
 
@@ -21,6 +21,7 @@ export default function ClassPreview() {
   const sessionDate = searchParams.get('date') ?? today();
 
   const [entries, setEntries] = useState([]);
+  const [absentIds, setAbsentIds] = useState(new Set());
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
   const cardRefs = useRef({});
@@ -68,10 +69,12 @@ export default function ClassPreview() {
       const students = classId ? await getStudentsByClassId(classId) : [];
       const studentIds = students.map(s => s.id);
 
-      const [records, secondRecords] = await Promise.all([
+      const [records, secondRecords, absentList] = await Promise.all([
         getRecordsByStudentIds(studentIds, sessionDate, classId),
         getSecondRoundsByDate(studentIds, sessionDate, classId),
+        classId ? getAbsentStudentIds(classId, sessionDate) : [],
       ]);
+      setAbsentIds(new Set(absentList));
 
       // 학생별 당일 1차 레코드 (이미 created_at desc 정렬)
       const recordByStudent = {};
@@ -140,7 +143,7 @@ export default function ClassPreview() {
   }
 
   async function handleExportPDF() {
-    const withRecords = entries.filter(e => e.record);
+    const withRecords = entries.filter(e => e.record && !absentIds.has(e.student.id));
     if (!withRecords.length) return alert('채점 기록이 있는 학생이 없습니다.');
     setExporting(true);
     try {
@@ -170,8 +173,9 @@ export default function ClassPreview() {
 
   if (loading) return <div className="text-center py-16 text-gray-400 text-sm">불러오는 중…</div>;
 
-  const withRecords = entries.filter(e => e.record);
-  const withoutRecords = entries.filter(e => !e.record);
+  const absentEntries = entries.filter(e => absentIds.has(e.student.id));
+  const withRecords = entries.filter(e => e.record && !absentIds.has(e.student.id));
+  const withoutRecords = entries.filter(e => !e.record && !absentIds.has(e.student.id));
 
   return (
     <div>
@@ -186,12 +190,21 @@ export default function ClassPreview() {
       </div>
 
       <div className="flex items-center justify-between mb-4">
-        <div className="text-sm text-gray-500">채점 완료 {withRecords.length}명 · 미채점 {withoutRecords.length}명</div>
+        <div className="text-sm text-gray-500">
+          채점 완료 {withRecords.length}명 · 미채점 {withoutRecords.length}명
+          {absentEntries.length > 0 && <> · 결석 {absentEntries.length}명</>}
+        </div>
         <button onClick={handleExportPDF} disabled={exporting || !withRecords.length}
           className={`px-5 py-2.5 rounded-xl font-semibold text-sm transition-all ${exporting ? 'bg-gray-200 text-gray-400 cursor-wait' : !withRecords.length ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-sm hover:shadow-md'}`}>
           {exporting ? '⏳ PDF 생성 중...' : '📄 PDF 다운로드'}
         </button>
       </div>
+
+      {absentEntries.length > 0 && (
+        <div className="mb-4 bg-red-50 border border-red-200 rounded-lg px-4 py-2 text-sm text-red-700">
+          결석 (PDF 제외): {absentEntries.map(e => e.student.name).join(', ')}
+        </div>
+      )}
 
       {withoutRecords.length > 0 && (
         <div className="mb-4 bg-amber-50 border border-amber-200 rounded-lg px-4 py-2 text-sm text-amber-700">
