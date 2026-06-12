@@ -3,6 +3,7 @@ import {
   getDeletedClasses, getDeletedStudents, getDeletedRecords,
   getAllClassesIncludingDeleted, getAllStudentsIncludingDeleted, getUnits,
   restoreClass, restoreStudent, restoreRecord,
+  classNameExists, studentNameExists, recordConflictExists,
 } from '../lib/store.js';
 import GradingCard from '../components/GradingCard.jsx';
 
@@ -58,17 +59,39 @@ export default function TrashPage() {
     if (selectedClassKey && !recordGroups[selectedClassKey]) setSelectedClassKey(null);
   }, [deletedRecords]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // '(구) 이름'도 이미 쓰이고 있으면 '(구2) 이름', '(구3) 이름'… 으로 회피
+  async function availableRestoreName(name, existsFn) {
+    let candidate = `(구) ${name}`;
+    let n = 2;
+    while (await existsFn(candidate)) candidate = `(구${n++}) ${name}`;
+    return candidate;
+  }
+
   async function handleRestoreClass(cls) {
-    await restoreClass(cls);
+    let newName = null;
+    if (await classNameExists(cls.class_name)) {
+      newName = await availableRestoreName(cls.class_name, classNameExists);
+      alert(`같은 이름의 반이 이미 있습니다. '${newName}' 이름으로 복원합니다.`);
+    }
+    await restoreClass(cls, newName);
     await refresh();
   }
 
   async function handleRestoreStudent(student) {
-    await restoreStudent(student);
+    let newName = null;
+    if (await studentNameExists(student.name)) {
+      newName = await availableRestoreName(student.name, studentNameExists);
+      alert(`같은 이름의 학생이 이미 있습니다. '${newName}' 이름으로 복원합니다.`);
+    }
+    await restoreStudent(student, newName);
     await refresh();
   }
 
   async function handleRestoreRecord(record) {
+    if (await recordConflictExists(record)) {
+      alert('이미 해당 날짜에 입력된 데이터가 있어 복원이 불가합니다.');
+      return;
+    }
     await restoreRecord(record.id);
     await refresh();
   }

@@ -59,12 +59,22 @@ export async function deleteClass(id) {
   if (error) throw error;
 }
 
-export async function restoreClass(cls) {
+export async function restoreClass(cls, newName = null) {
   const { error: e1 } = await supabase.from('hw_homework_records')
     .update({ deleted_at: null }).eq('class_id', cls.id).eq('deleted_at', cls.deleted_at);
   if (e1) throw e1;
-  const { error } = await supabase.from('hw_classes').update({ deleted_at: null }).eq('id', cls.id);
+  const updates = { deleted_at: null };
+  if (newName) updates.class_name = newName;
+  const { error } = await supabase.from('hw_classes').update(updates).eq('id', cls.id);
   if (error) throw error;
+}
+
+export async function classNameExists(name) {
+  const { count, error } = await supabase.from('hw_classes')
+    .select('*', { count: 'exact', head: true })
+    .eq('class_name', name).is('deleted_at', null);
+  if (error) throw error;
+  return (count ?? 0) > 0;
 }
 
 // ── 학생 ─────────────────────────────────────────────────────────────────────
@@ -122,12 +132,22 @@ export async function deleteStudent(id) {
   if (error) throw error;
 }
 
-export async function restoreStudent(student) {
+export async function restoreStudent(student, newName = null) {
   const { error: e1 } = await supabase.from('hw_homework_records')
     .update({ deleted_at: null }).eq('student_id', student.id).eq('deleted_at', student.deleted_at);
   if (e1) throw e1;
-  const { error } = await supabase.from('hw_students').update({ deleted_at: null }).eq('id', student.id);
+  const updates = { deleted_at: null };
+  if (newName) updates.name = newName;
+  const { error } = await supabase.from('hw_students').update(updates).eq('id', student.id);
   if (error) throw error;
+}
+
+export async function studentNameExists(name) {
+  const { count, error } = await supabase.from('hw_students')
+    .select('*', { count: 'exact', head: true })
+    .eq('name', name).is('deleted_at', null);
+  if (error) throw error;
+  return (count ?? 0) > 0;
 }
 
 // ── 반-학생 연결 (N:M) ───────────────────────────────────────────────────────
@@ -305,6 +325,19 @@ export async function restoreRecord(id) {
   const { error } = await supabase.from('hw_homework_records')
     .update({ deleted_at: null }).eq('id', id);
   if (error) throw error;
+}
+
+// 같은 학생·날짜·반에 살아있는 기록이 있으면 복원 시 충돌
+export async function recordConflictExists(record) {
+  let q = supabase.from('hw_homework_records')
+    .select('*', { count: 'exact', head: true })
+    .eq('student_id', record.student_id)
+    .eq('session_date', record.session_date)
+    .is('deleted_at', null);
+  q = record.class_id ? q.eq('class_id', record.class_id) : q.is('class_id', null);
+  const { count, error } = await q;
+  if (error) throw error;
+  return (count ?? 0) > 0;
 }
 
 // ── 휴지통 ────────────────────────────────────────────────────────────────────
