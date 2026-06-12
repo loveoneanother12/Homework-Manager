@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import {
   getDeletedClasses, getDeletedStudents, getDeletedRecords,
   getAllClassesIncludingDeleted, getAllStudentsIncludingDeleted, getUnits,
+  getHomeworksByIds,
   restoreClass, restoreStudent, restoreRecord,
   classNameExists, studentNameExists, recordConflictExists,
 } from '../lib/store.js';
@@ -16,8 +17,9 @@ export default function TrashPage() {
   const [allClasses, setAllClasses] = useState([]);
   const [allStudents, setAllStudents] = useState([]);
   const [units, setUnits] = useState([]);
+  const [homeworksById, setHomeworksById] = useState({});
   const [loading, setLoading] = useState(true);
-  const [selectedClassKey, setSelectedClassKey] = useState(null); // class_id 또는 '__none__'
+  const [selectedGroupKey, setSelectedGroupKey] = useState(null); // '반|날짜|숙제' 그룹 키
 
   const refresh = useCallback(async () => {
     const [dc, ds, dr, ac, as, u] = await Promise.all([
@@ -30,6 +32,9 @@ export default function TrashPage() {
     setAllClasses(ac);
     setAllStudents(as);
     setUnits(u);
+    const hwIds = [...new Set(dr.map(r => r.homework_id).filter(Boolean))];
+    const hws = await getHomeworksByIds(hwIds);
+    setHomeworksById(Object.fromEntries(hws.map(h => [h.id, h])));
   }, []);
 
   useEffect(() => {
@@ -41,22 +46,32 @@ export default function TrashPage() {
   const studentById = Object.fromEntries(allStudents.map(s => [s.id, s]));
   const unitById = Object.fromEntries(units.map(u => [u.id, u]));
 
-  // 삭제된 채점 기록을 반별로 그룹핑
+  // 삭제된 채점 기록을 (반, 날짜, 숙제) 단위로 그룹핑
   const recordGroups = {};
   for (const r of deletedRecords) {
-    const key = r.class_id ?? '__none__';
+    const key = `${r.class_id ?? 'none'}|${r.session_date}|${r.homework_id ?? 'none'}`;
     if (!recordGroups[key]) recordGroups[key] = [];
     recordGroups[key].push(r);
   }
   const groupKeys = Object.keys(recordGroups);
 
-  const selectedRecords = selectedClassKey ? (recordGroups[selectedClassKey] ?? []) : [];
-  const selectedClass = selectedClassKey && selectedClassKey !== '__none__'
-    ? classById[selectedClassKey] : null;
+  // 그룹 메타: 첫 레코드에서 반·날짜·숙제·학생 명단 도출
+  function groupMeta(key) {
+    const records = recordGroups[key] ?? [];
+    const first = records[0];
+    if (!first) return null;
+    const cls = first.class_id ? classById[first.class_id] : null;
+    const hw = first.homework_id ? homeworksById[first.homework_id] : null;
+    const studentNames = [...new Set(records.map(r => r.student_id))]
+      .map(id => studentById[id]?.name ?? '알 수 없음');
+    return { records, cls, hw, date: first.session_date, studentNames };
+  }
+
+  const selected = selectedGroupKey ? groupMeta(selectedGroupKey) : null;
 
   useEffect(() => {
     // 복원으로 그룹이 비면 모달 닫기
-    if (selectedClassKey && !recordGroups[selectedClassKey]) setSelectedClassKey(null);
+    if (selectedGroupKey && !recordGroups[selectedGroupKey]) setSelectedGroupKey(null);
   }, [deletedRecords]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // '(구) 이름'도 이미 쓰이고 있으면 '(구2) 이름', '(구3) 이름'… 으로 회피
@@ -120,29 +135,35 @@ export default function TrashPage() {
           <h2 className="text-lg font-semibold text-gray-700 mb-4">채점 정보</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {groupKeys.map(key => {
-              const cls = key !== '__none__' ? classById[key] : null;
-              const records = recordGroups[key];
-              const isSelected = selectedClassKey === key;
+              const meta = groupMeta(key);
+              if (!meta) return null;
+              const { records, cls, hw, date, studentNames } = meta;
+              const isSelected = selectedGroupKey === key;
               return (
                 <button
                   key={key}
                   type="button"
-                  onClick={() => setSelectedClassKey(isSelected ? null : key)}
+                  onClick={() => setSelectedGroupKey(isSelected ? null : key)}
                   className={`block text-left bg-white border rounded-xl p-5 transition-all ${
                     isSelected ? 'border-indigo-400 shadow-sm' : 'border-gray-200 hover:border-indigo-300 hover:shadow-sm'
                   }`}>
-                  <div className="flex items-start justify-between mb-2">
+                  <div className="flex items-start justify-between mb-1">
                     <h3 className="font-semibold text-gray-800 text-base">
                       {cls?.class_name ?? '반 미지정'}
                     </h3>
                     <span className="text-xl opacity-50">🗑</span>
                   </div>
-                  {cls?.instructor && (
-                    <p className="text-xs text-gray-500 mb-1">강사 {cls.instructor}</p>
-                  )}
-                  <p className="text-xs text-gray-400">삭제된 채점 기록 {records.length}건</p>
+                  <p className="text-xs text-gray-500 mb-2">
+                    {date} · {hw ? `${hw.period ? `${hw.period}교시 · ` : ''}${hw.title}` : '숙제 미지정'}
+                  </p>
+                  <p className="text-xs text-gray-400 mb-1.5">학생 {studentNames.length}명 · 기록 {records.length}건</p>
+                  <div className="flex gap-1 flex-wrap">
+                    {studentNames.map((name, i) => (
+                      <span key={i} className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">{name}</span>
+                    ))}
+                  </div>
                   {cls?.deleted_at && (
-                    <p className="text-xs text-amber-600 mt-1.5">이 반도 휴지통에 있음</p>
+                    <p className="text-xs text-amber-600 mt-2">이 반도 휴지통에 있음</p>
                   )}
                 </button>
               );
@@ -215,28 +236,31 @@ export default function TrashPage() {
         </section>
       )}
 
-      {/* ── 채점 정보 하단 모달 (좌우 스크롤) ── */}
-      {selectedClassKey && selectedRecords.length > 0 && (
-        <div className="fixed inset-0 z-50 flex items-end" onClick={() => setSelectedClassKey(null)}>
+      {/* ── 채점 정보 하단 모달 (좌우 스크롤, 평가서 모양) ── */}
+      {selected && selected.records.length > 0 && (
+        <div className="fixed inset-0 z-50 flex items-end" onClick={() => setSelectedGroupKey(null)}>
           <div className="absolute inset-0 bg-black/30" />
           <div
             className="relative w-full bg-white rounded-t-2xl shadow-2xl max-h-[70vh] flex flex-col"
             onClick={e => e.stopPropagation()}>
             {/* 모달 헤더 */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
-              <div className="flex items-baseline gap-3">
+              <div className="flex items-baseline gap-3 flex-wrap">
                 <h3 className="font-bold text-gray-800">
-                  {selectedClass?.class_name ?? '반 미지정'} — 삭제된 채점 기록
+                  {selected.cls?.class_name ?? '반 미지정'} — 삭제된 채점 기록
                 </h3>
-                <span className="text-xs text-gray-400">{selectedRecords.length}건</span>
+                <span className="text-xs text-gray-500">
+                  {selected.date} · {selected.hw ? `${selected.hw.period ? `${selected.hw.period}교시 · ` : ''}${selected.hw.title}` : '숙제 미지정'}
+                </span>
+                <span className="text-xs text-gray-400">학생 {selected.studentNames.length}명 · {selected.records.length}건</span>
               </div>
               <button
-                onClick={() => setSelectedClassKey(null)}
+                onClick={() => setSelectedGroupKey(null)}
                 className="text-gray-400 hover:text-gray-600 text-sm">
                 ✕ 닫기
               </button>
             </div>
-            {selectedClass?.deleted_at && (
+            {selected.cls?.deleted_at && (
               <div className="px-6 py-2 bg-amber-50 border-b border-amber-100 text-xs text-amber-700">
                 이 반은 휴지통에 있습니다. '반 정보'에서 반을 복원하면 함께 삭제된 기록이 한 번에 복원됩니다.
               </div>
@@ -244,13 +268,13 @@ export default function TrashPage() {
             {/* 좌우 스크롤 카드 목록 */}
             <div className="overflow-x-auto px-6 py-5">
               <div className="flex gap-5 w-max">
-                {selectedRecords.map(r => {
+                {selected.records.map(r => {
                   const student = studentById[r.student_id];
                   return (
                     <div key={r.id} className="flex flex-col gap-2 flex-shrink-0">
                       <div className="flex items-center justify-between">
                         <span className="text-xs text-gray-400">
-                          수업일 {r.session_date} · 삭제일 {fmtDate(r.deleted_at)}
+                          삭제일 {fmtDate(r.deleted_at)}
                         </span>
                         <button
                           onClick={() => handleRestoreRecord(r)}
@@ -263,7 +287,7 @@ export default function TrashPage() {
                           record={r}
                           student={student}
                           unit={unitById[r.unit_id] ?? null}
-                          classLabel={selectedClass?.class_name}
+                          classLabel={selected.cls?.class_name}
                           editable={false}
                         />
                       ) : (

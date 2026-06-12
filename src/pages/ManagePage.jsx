@@ -222,6 +222,12 @@ export default function ManagePage() {
       const [cls, mems] = await Promise.all([getClasses(), getAllClassMemberships()]);
       setClasses(cls);
       setMemberships(mems);
+    } catch (err) {
+      if (err?.code === '23505') {
+        alert(`'${form.class_name}' 이름의 반이 이미 있습니다. 다른 이름을 사용해 주세요.`);
+      } else {
+        alert(`반 저장 중 오류가 발생했습니다.\n${err?.message ?? err}`);
+      }
     } finally { setClassSaving(false); }
   }
 

@@ -225,6 +225,13 @@ export async function getHomework(id) {
   return data ?? null;
 }
 
+export async function getHomeworksByIds(ids) {
+  if (!ids.length) return [];
+  const { data, error } = await supabase.from('hw_homeworks').select('*').in('id', ids);
+  if (error) throw error;
+  return data ?? [];
+}
+
 export async function addHomework(classId, sessionDate, title, period = null) {
   const { data, error } = await supabase.from('hw_homeworks')
     .insert({ class_id: classId, session_date: sessionDate, title, period }).select().single();
