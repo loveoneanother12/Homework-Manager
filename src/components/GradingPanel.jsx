@@ -1,15 +1,6 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
-import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import {
-  getStudent, getUnits, getRecordsByStudent,
-  getPendingSecondRoundRecords, getClassByName, getHomework,
-  addRecord, updateRecord, deleteRecord, getSentences,
-} from '../lib/store.js';
+import { useState, useEffect } from 'react';
 import { calcFirst, calcSecond, validate1st, validate2nd, pct } from '../lib/kpi.js';
-import { generateComment1st, generateComment2nd, shouldFlagClinic } from '../lib/comments.js';
-import { today } from '../lib/dateUtils.js';
-import DateSelector from '../components/DateSelector.jsx';
-import { SUBJECTS } from './UnitManagement.jsx';
+import { SUBJECTS } from '../pages/UnitManagement.jsx';
 
 const PROCESS_OPTIONS = [
   { value: null,         label: '없음', cls: 'bg-gray-100 text-gray-500 border-gray-300' },
@@ -58,7 +49,9 @@ function KpiBox({ kpi1, kpi2 }) {
           ['손 못 댄', pct(kpi1.gave_up_rate)],
           ['풀고 틀린', pct(kpi1.wrong_rate)],
         ].map(([l, v]) => (
-          <><span key={l} className="text-gray-600">{l}</span><span className="font-medium text-right">{v}</span></>
+          <div key={l} className="contents">
+            <span className="text-gray-600">{l}</span><span className="font-medium text-right">{v}</span>
+          </div>
         ))}
       </div>
       {kpi2 && (
@@ -70,7 +63,9 @@ function KpiBox({ kpi1, kpi2 }) {
             ['반복 오류율', pct(kpi2.repeat_error_rate)],
             ['완전 미해결율', pct(kpi2.unresolved_rate)],
           ].map(([l, v]) => (
-            <><span key={l} className="text-gray-600">{l}</span><span className="font-medium text-right">{v}</span></>
+            <div key={l} className="contents">
+              <span className="text-gray-600">{l}</span><span className="font-medium text-right">{v}</span>
+            </div>
           ))}
         </div>
       )}
@@ -314,7 +309,7 @@ function FirstRoundForm({ units, onSave, onCancel }) {
   const canSave = filled && errors.length === 0;
 
   async function handleSave() {
-    if (!canSave) return;
+    if (!canSave || saving) return;
     setSaving(true);
     try { await onSave(f, kpi1); } finally { setSaving(false); }
   }
@@ -390,7 +385,7 @@ function SecondRoundForm({ refRecord, units, onSave, onCancel }) {
   }, [s, firstWrongs]);
 
   async function handleSave() {
-    if (errors.length > 0) return;
+    if (errors.length > 0 || saving) return;
     setSaving(true);
     try { await onSave(s, kpi2); } finally { setSaving(false); }
   }
@@ -473,18 +468,15 @@ function PendingList({ records, units, onSelect }) {
 }
 
 // ── 과제 채점 패널 (Step 1 + Step 2) ────────────────────────────────────────
+// records: 이 숙제에 대한 해당 학생의 기록 — 있으면 새 입력 폼 대신 기록 카드만
+// 표시해 학생당 1개 기록을 보장한다.
 
-function GradingPanel({ units, pendingRecords, pendingLoading, sessionDate, onSaveFirst, onSaveSecond, onClose }) {
+export default function GradingPanel({
+  units, records = [], pendingRecords, pendingLoading,
+  onSaveFirst, onSaveSecond, onEdit, onDelete, onClose,
+}) {
   const [step, setStep] = useState(1);
   const [secondTarget, setSecondTarget] = useState(null);
-
-  function handleSelectRecord(record) {
-    setSecondTarget(record);
-  }
-
-  function handleCancelSecond() {
-    setSecondTarget(null);
-  }
 
   async function handleSaveSecond(s, kpi2) {
     await onSaveSecond(secondTarget, s, kpi2);
@@ -506,7 +498,7 @@ function GradingPanel({ units, pendingRecords, pendingLoading, sessionDate, onSa
       {/* Step 탭 */}
       <div className="flex border-b border-gray-200">
         {[
-          { num: 1, label: '이번 회차 1차 채점' },
+          { num: 1, label: '이번 숙제 1차 채점' },
           { num: 2, label: '이전 회차 2차 채점', badge: step2Badge },
         ].map(({ num, label, badge }) => (
           <button key={num} onClick={() => setStep(num)}
@@ -519,11 +511,18 @@ function GradingPanel({ units, pendingRecords, pendingLoading, sessionDate, onSa
       {/* Step 내용 */}
       <div className="p-5">
         {step === 1 && (
-          <FirstRoundForm
-            units={units}
-            onSave={async (f, kpi1) => { await onSaveFirst(f, kpi1); }}
-            onCancel={onClose}
-          />
+          records.length > 0 ? (
+            <div className="space-y-3">
+              <p className="text-xs text-gray-500">
+                이 숙제에는 학생당 1개의 채점 기록만 입력할 수 있습니다. 수정하려면 아래 기록을 편집하세요.
+              </p>
+              {records.map(r => (
+                <RecordCard key={r.id} record={r} units={units} onDelete={onDelete} onEdit={onEdit} />
+              ))}
+            </div>
+          ) : (
+            <FirstRoundForm units={units} onSave={onSaveFirst} onCancel={onClose} />
+          )
         )}
         {step === 2 && (
           pendingLoading
@@ -533,240 +532,15 @@ function GradingPanel({ units, pendingRecords, pendingLoading, sessionDate, onSa
                   refRecord={secondTarget}
                   units={units}
                   onSave={handleSaveSecond}
-                  onCancel={handleCancelSecond}
+                  onCancel={() => setSecondTarget(null)}
                 />
               : <PendingList
                   records={pendingRecords}
                   units={units}
-                  onSelect={handleSelectRecord}
+                  onSelect={setSecondTarget}
                 />
         )}
       </div>
-    </div>
-  );
-}
-
-// ── 메인 ─────────────────────────────────────────────────────────────────────
-
-export default function GradingInput() {
-  const { studentId } = useParams();
-  const navigate = useNavigate();
-  const [searchParams, setSearchParams] = useSearchParams();
-  const sessionDate = searchParams.get('date') ?? today();
-  const className = searchParams.get('class');
-  const homeworkId = searchParams.get('hw');
-
-  const classIdRef = useRef(null); // 항상 최신 classId를 참조
-
-  const [student, setStudent] = useState(null);
-  const [units, setUnits] = useState([]);
-  const [records, setRecords] = useState([]);
-  const [homework, setHomework] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [showPanel, setShowPanel] = useState(false);
-  const [pendingRecords, setPendingRecords] = useState([]);
-  const [pendingLoading, setPendingLoading] = useState(false);
-
-  const refresh = useCallback(async () => {
-    setLoading(true);
-    try {
-      const [s, u, cls, hw] = await Promise.all([
-        getStudent(studentId),
-        getUnits(),
-        className ? getClassByName(className) : Promise.resolve(null),
-        getHomework(homeworkId),
-      ]);
-      const resolvedClassId = cls?.id ?? null;
-      classIdRef.current = resolvedClassId;
-      const r = await getRecordsByStudent(studentId, sessionDate, resolvedClassId, homeworkId);
-      setStudent(s);
-      setUnits(u);
-      setHomework(hw);
-      setRecords(r);
-    } finally {
-      setLoading(false);
-    }
-  }, [studentId, sessionDate, className, homeworkId]);
-
-  useEffect(() => { refresh(); }, [refresh]);
-
-  async function refreshPending() {
-    setPendingLoading(true);
-    try {
-      const pending = await getPendingSecondRoundRecords(studentId, sessionDate, classIdRef.current);
-      setPendingRecords(pending);
-    } finally {
-      setPendingLoading(false);
-    }
-  }
-
-  async function openPanel() {
-    setShowPanel(true);
-    await refreshPending();
-  }
-
-  async function handleSaveFirst(f, kpi1) {
-    const unit = units.find(u => u.id === f.unit_id);
-    const sentences = await getSentences();
-    const generated_comment = generateComment1st({
-      kpi1, preset_type: unit?.preset_type ?? 'default',
-      process_score: f.process_score, sentences,
-    });
-    await addRecord({
-      student_id: studentId,
-      class_id: classIdRef.current,
-      homework_id: homeworkId ?? null,
-      unit_id: f.unit_id,
-      round: 1,
-      session_date: sessionDate,
-      total_count: Number(f.total_count),
-      not_attempted: Number(f.not_attempted),
-      gave_up: Number(f.gave_up),
-      wrong_attempted: Number(f.wrong_attempted),
-      process_score: f.process_score,
-      retry_total: null, retry_correct: null, retry_wrong: null, retry_gave_up: null,
-      note_quality: null,
-      generated_comment,
-      generated_comment_2: null,
-      manual_comment: null,
-      manual_comment_2: null,
-      clinic_flag: shouldFlagClinic({ kpi1, kpi2: null }),
-    });
-    await refresh();
-  }
-
-  async function handleSaveSecond(refRecord, s, kpi2) {
-    const kpi1 = refRecord._kpi1;
-    const sentences = await getSentences();
-    const generated_comment_2 = generateComment2nd({
-      kpi2,
-      retry_wrong: Number(s.retry_wrong),
-      retry_gave_up: Number(s.retry_gave_up),
-      note_quality: s.note_quality,
-      sentences,
-    });
-    await updateRecord(refRecord.id, {
-      round: 2,
-      second_session_date: sessionDate,
-      retry_total: Number(s.retry_total),
-      retry_correct: Number(s.retry_correct),
-      retry_wrong: Number(s.retry_wrong),
-      retry_gave_up: Number(s.retry_gave_up),
-      note_quality: s.note_quality,
-      generated_comment_2,
-      manual_comment_2: null,
-      clinic_flag: shouldFlagClinic({ kpi1, kpi2 }),
-    });
-    await refresh();
-    await refreshPending();
-  }
-
-  async function handleDelete(id) {
-    if (!confirm('이 채점 기록을 삭제하시겠습니까? (휴지통으로 이동하며 복원할 수 있습니다)')) return;
-    await deleteRecord(id);
-    await refresh();
-  }
-
-  async function handleEdit(id, f, kpi1, kpi2) {
-    const unit = units.find(u => u.id === f.unit_id);
-    const sentences = await getSentences();
-    const generated_comment = generateComment1st({
-      kpi1, preset_type: unit?.preset_type ?? 'default',
-      process_score: f.process_score, sentences,
-    });
-    const updateData = {
-      unit_id: f.unit_id,
-      total_count: Number(f.total_count),
-      not_attempted: Number(f.not_attempted),
-      gave_up: Number(f.gave_up),
-      wrong_attempted: Number(f.wrong_attempted),
-      process_score: f.process_score,
-      generated_comment,
-      clinic_flag: shouldFlagClinic({ kpi1, kpi2 }),
-    };
-    if (kpi2) {
-      const generated_comment_2 = generateComment2nd({
-        kpi2, retry_wrong: Number(f.retry_wrong),
-        retry_gave_up: Number(f.retry_gave_up), note_quality: f.note_quality, sentences,
-      });
-      Object.assign(updateData, {
-        retry_total: Number(f.retry_total),
-        retry_correct: Number(f.retry_correct),
-        retry_wrong: Number(f.retry_wrong),
-        retry_gave_up: Number(f.retry_gave_up),
-        note_quality: f.note_quality,
-        generated_comment_2,
-      });
-    }
-    await updateRecord(id, updateData);
-    await refresh();
-  }
-
-  if (loading) return <div className="text-center py-16 text-gray-400 text-sm">불러오는 중…</div>;
-  if (!student) return <div className="text-center py-16 text-gray-400">학생 정보를 불러올 수 없습니다.</div>;
-
-  return (
-    <div className="max-w-2xl mx-auto space-y-5">
-      <div className="flex items-center gap-3">
-        <button
-          onClick={() => navigate(homeworkId
-            ? `/class/${encodeURIComponent(className)}/hw/${homeworkId}?date=${sessionDate}`
-            : `/class/${encodeURIComponent(className)}?date=${sessionDate}`)}
-          className="text-gray-400 hover:text-gray-600 text-sm">
-          ← 학생 목록
-        </button>
-        <h1 className="text-xl font-bold text-gray-900">{student.name}</h1>
-        {className && <span className="text-sm text-gray-400">{className}</span>}
-        {homework && (
-          <span className="text-sm font-medium text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-lg">
-            {homework.period ? `${homework.period}교시 · ` : ''}{homework.title}
-          </span>
-        )}
-      </div>
-
-      {/* 날짜 선택 — 숙제는 날짜에 속하므로 날짜 변경 시 그 날짜의 숙제 목록으로 이동 */}
-      <div className="flex items-center gap-3 py-3 border-b border-gray-100">
-        <DateSelector date={sessionDate} onChange={d => {
-          if (className) { navigate(`/class/${encodeURIComponent(className)}?date=${d}`); return; }
-          setShowPanel(false);
-          setSearchParams(prev => { const p = new URLSearchParams(prev); p.set('date', d); return p; });
-        }} />
-      </div>
-
-      {/* 과제 채점 버튼 / 패널 */}
-      {!showPanel ? (
-        <div className="flex justify-end">
-          <button onClick={openPanel}
-            className="px-5 py-2.5 bg-indigo-600 text-white rounded-lg text-sm font-semibold hover:bg-indigo-700 transition-colors shadow-sm">
-            + 과제 채점
-          </button>
-        </div>
-      ) : (
-        <GradingPanel
-          units={units}
-          pendingRecords={pendingRecords}
-          pendingLoading={pendingLoading}
-          sessionDate={sessionDate}
-          onSaveFirst={handleSaveFirst}
-          onSaveSecond={handleSaveSecond}
-          onClose={() => setShowPanel(false)}
-        />
-      )}
-
-      {/* 이력 */}
-      {records.length === 0 ? (
-        <div className="text-center py-16 text-gray-400">
-          <p className="text-3xl mb-3">📝</p>
-          <p className="text-sm">이 날짜의 채점 기록이 없습니다.</p>
-        </div>
-      ) : (
-        <div className="space-y-3">
-          <p className="text-xs text-gray-400 font-medium">채점 기록 ({records.length}건)</p>
-          {records.map(r => (
-            <RecordCard key={r.id} record={r} units={units} onDelete={handleDelete} onEdit={handleEdit} />
-          ))}
-        </div>
-      )}
     </div>
   );
 }

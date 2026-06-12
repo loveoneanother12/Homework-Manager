@@ -84,6 +84,7 @@ export default function HomeworkList() {
   const [classId, setClassId] = useState(null);
   const [homeworks, setHomeworks] = useState([]);
   const [gradedCounts, setGradedCounts] = useState({}); // homework_id → 채점 학생 수
+  const [recordCount, setRecordCount] = useState(0);    // 이 날짜의 전체 채점 기록 수
   const [noHomework, setNoHomeworkFlag] = useState(false);
   const [loading, setLoading] = useState(true);
   const [formTarget, setFormTarget] = useState(null); // 'new' | 숙제 객체
@@ -107,6 +108,7 @@ export default function HomeworkList() {
         (byHw[r.homework_id] ??= new Set()).add(r.student_id);
       }
       setGradedCounts(Object.fromEntries(Object.entries(byHw).map(([k, v]) => [k, v.size])));
+      setRecordCount(records.length);
       setNoHomeworkFlag(noHw);
     } finally {
       setLoading(false);
@@ -136,6 +138,13 @@ export default function HomeworkList() {
 
   async function toggleNoHomework() {
     const next = !noHomework;
+    if (next && recordCount > 0) {
+      const ok = confirm(
+        '채점된 데이터가 이미 있습니다. 기존의 데이터를 무시하고 숙제 없음으로 표시하겠습니까?\n'
+        + '숙제 없음 처리를 해도 기존 데이터는 사라지지 않으며, 다시 원래 상태로 복원할 수 있습니다.'
+      );
+      if (!ok) return;
+    }
     setNoHomeworkFlag(next);
     await setNoHomework(classId, sessionDate, next);
   }

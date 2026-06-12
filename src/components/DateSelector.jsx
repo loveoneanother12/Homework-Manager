@@ -39,7 +39,7 @@ export default function DateSelector({ date, onChange }) {
           onClick={() => onChange(today())}
           className="ml-1 px-2.5 py-1 rounded-lg text-xs bg-indigo-50 text-indigo-600 hover:bg-indigo-100 font-medium transition-colors"
         >
-          오늘
+          오늘 날짜로 이동
         </button>
       )}
     </div>

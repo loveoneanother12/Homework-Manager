@@ -3,10 +3,13 @@ import { Link, useParams, useNavigate, useSearchParams, useLocation } from 'reac
 import {
   getClassByName, getStudentsByClassId, getRecordsByStudentIds, getUnits,
   getAbsentStudentIds, setAbsence, getHomework,
+  getPendingSecondRoundRecords, addRecord, updateRecord, deleteRecord, getSentences,
 } from '../lib/store.js';
 import { pct } from '../lib/kpi.js';
+import { generateComment1st, generateComment2nd, shouldFlagClinic } from '../lib/comments.js';
 import { today } from '../lib/dateUtils.js';
 import DateSelector from '../components/DateSelector.jsx';
+import GradingPanel from '../components/GradingPanel.jsx';
 
 export default function StudentList() {
   const { className, homeworkId } = useParams();
@@ -17,11 +20,17 @@ export default function StudentList() {
   const sessionDate = searchParams.get('date') ?? today();
   const { key: locationKey } = useLocation();
 
-  const [entries, setEntries] = useState([]); // [{student, record, unit}]
+  const [entries, setEntries] = useState([]); // [{student, records, record, unit}]
+  const [units, setUnits] = useState([]);
   const [loading, setLoading] = useState(true);
   const [classId, setClassId] = useState(null);
   const [homework, setHomework] = useState(null);
   const [absentIds, setAbsentIds] = useState(new Set());
+
+  // 인라인 채점 패널
+  const [expandedStudentId, setExpandedStudentId] = useState(null);
+  const [pendingRecords, setPendingRecords] = useState([]);
+  const [pendingLoading, setPendingLoading] = useState(false);
 
   async function refresh() {
     setLoading(true);
@@ -31,19 +40,21 @@ export default function StudentList() {
       setClassId(resolvedClassId);
       setHomework(hw);
       const students = resolvedClassId ? await getStudentsByClassId(resolvedClassId) : [];
-      const [allRecords, units, absentList] = await Promise.all([
+      const [allRecords, allUnits, absentList] = await Promise.all([
         getRecordsByStudentIds(students.map(s => s.id), sessionDate, resolvedClassId, homeworkId),
         getUnits(),
         resolvedClassId ? getAbsentStudentIds(resolvedClassId, sessionDate) : [],
       ]);
+      setUnits(allUnits);
       setAbsentIds(new Set(absentList));
-      const unitsById = Object.fromEntries(units.map(u => [u.id, u]));
+      const unitsById = Object.fromEntries(allUnits.map(u => [u.id, u]));
 
       setEntries(students.map(student => {
         const recs = allRecords.filter(r => r.student_id === student.id);
         const latest = recs[0] ?? null; // already sorted desc
         return {
           student,
+          records: recs,
           record: latest,
           unit: latest ? (unitsById[latest.unit_id] ?? null) : null,
         };
@@ -65,9 +76,122 @@ export default function StudentList() {
     await setAbsence(classId, studentId, sessionDate, next);
   }
 
-  const gradingLink = (studentId) => `/student/${studentId}/grade?date=${sessionDate}&class=${encodeURIComponent(decoded)}&hw=${homeworkId}`;
-  const previewLink = `/class/${className}/hw/${homeworkId}/preview?date=${sessionDate}`;
+  // ── 인라인 채점 패널 핸들러 ─────────────────────────────────────────────────
 
+  async function refreshPending(studentId) {
+    setPendingLoading(true);
+    try {
+      setPendingRecords(await getPendingSecondRoundRecords(studentId, sessionDate, classId));
+    } finally {
+      setPendingLoading(false);
+    }
+  }
+
+  async function toggleGrading(studentId) {
+    if (expandedStudentId === studentId) { setExpandedStudentId(null); return; }
+    setExpandedStudentId(studentId);
+    setPendingRecords([]);
+    await refreshPending(studentId);
+  }
+
+  async function handleSaveFirst(studentId, f, kpi1) {
+    const unit = units.find(u => u.id === f.unit_id);
+    const sentences = await getSentences();
+    const generated_comment = generateComment1st({
+      kpi1, preset_type: unit?.preset_type ?? 'default',
+      process_score: f.process_score, sentences,
+    });
+    await addRecord({
+      student_id: studentId,
+      class_id: classId,
+      homework_id: homeworkId ?? null,
+      unit_id: f.unit_id,
+      round: 1,
+      session_date: sessionDate,
+      total_count: Number(f.total_count),
+      not_attempted: Number(f.not_attempted),
+      gave_up: Number(f.gave_up),
+      wrong_attempted: Number(f.wrong_attempted),
+      process_score: f.process_score,
+      retry_total: null, retry_correct: null, retry_wrong: null, retry_gave_up: null,
+      note_quality: null,
+      generated_comment,
+      generated_comment_2: null,
+      manual_comment: null,
+      manual_comment_2: null,
+      clinic_flag: shouldFlagClinic({ kpi1, kpi2: null }),
+    });
+    await refresh();
+  }
+
+  async function handleSaveSecond(refRecord, s, kpi2) {
+    const kpi1 = refRecord._kpi1;
+    const sentences = await getSentences();
+    const generated_comment_2 = generateComment2nd({
+      kpi2,
+      retry_wrong: Number(s.retry_wrong),
+      retry_gave_up: Number(s.retry_gave_up),
+      note_quality: s.note_quality,
+      sentences,
+    });
+    await updateRecord(refRecord.id, {
+      round: 2,
+      second_session_date: sessionDate,
+      retry_total: Number(s.retry_total),
+      retry_correct: Number(s.retry_correct),
+      retry_wrong: Number(s.retry_wrong),
+      retry_gave_up: Number(s.retry_gave_up),
+      note_quality: s.note_quality,
+      generated_comment_2,
+      manual_comment_2: null,
+      clinic_flag: shouldFlagClinic({ kpi1, kpi2 }),
+    });
+    await refresh();
+    if (expandedStudentId) await refreshPending(expandedStudentId);
+  }
+
+  async function handleEdit(id, f, kpi1, kpi2) {
+    const unit = units.find(u => u.id === f.unit_id);
+    const sentences = await getSentences();
+    const generated_comment = generateComment1st({
+      kpi1, preset_type: unit?.preset_type ?? 'default',
+      process_score: f.process_score, sentences,
+    });
+    const updateData = {
+      unit_id: f.unit_id,
+      total_count: Number(f.total_count),
+      not_attempted: Number(f.not_attempted),
+      gave_up: Number(f.gave_up),
+      wrong_attempted: Number(f.wrong_attempted),
+      process_score: f.process_score,
+      generated_comment,
+      clinic_flag: shouldFlagClinic({ kpi1, kpi2 }),
+    };
+    if (kpi2) {
+      const generated_comment_2 = generateComment2nd({
+        kpi2, retry_wrong: Number(f.retry_wrong),
+        retry_gave_up: Number(f.retry_gave_up), note_quality: f.note_quality, sentences,
+      });
+      Object.assign(updateData, {
+        retry_total: Number(f.retry_total),
+        retry_correct: Number(f.retry_correct),
+        retry_wrong: Number(f.retry_wrong),
+        retry_gave_up: Number(f.retry_gave_up),
+        note_quality: f.note_quality,
+        generated_comment_2,
+      });
+    }
+    await updateRecord(id, updateData);
+    await refresh();
+  }
+
+  async function handleDelete(id) {
+    if (!confirm('이 채점 기록을 삭제하시겠습니까? (휴지통으로 이동하며 복원할 수 있습니다)')) return;
+    await deleteRecord(id);
+    await refresh();
+  }
+
+  const previewLink = `/class/${className}/hw/${homeworkId}/preview?date=${sessionDate}`;
   const doneCount = entries.filter(e => e.record).length;
 
   if (loading) return <div className="text-center py-16 text-gray-400 text-sm">불러오는 중…</div>;
@@ -104,50 +228,72 @@ export default function StudentList() {
         <div className="text-center py-16 text-gray-400 text-sm">이 반에 학생이 없습니다.</div>
       ) : (
         <div className="bg-white rounded-xl border border-gray-200 divide-y divide-gray-100">
-          {entries.map(({ student, record, unit }) => {
+          {entries.map(({ student, records, record, unit }) => {
             const isAbsent = absentIds.has(student.id);
+            const isExpanded = expandedStudentId === student.id;
             return (
-              <div key={student.id} className="flex items-center px-5 py-4 gap-4">
-                <div className={`flex-1 min-w-0 ${isAbsent ? 'opacity-50' : ''}`}>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-medium text-gray-900">{student.name}</span>
-                    {student.grade && <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded">{student.grade}</span>}
-                    {isAbsent && (
-                      <span className="text-xs bg-red-100 text-red-600 px-2 py-0.5 rounded-full font-medium">결석</span>
-                    )}
-                    {record?.clinic_flag && (
-                      <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full font-medium">클리닉</span>
-                    )}
-                  </div>
-                  {record ? (
-                    <div className="text-xs text-gray-500 mt-1 flex gap-3 flex-wrap">
-                      <span>{unit?.unit_name ?? '단원 없음'}</span>
-                      <span className={record._kpi2 ? 'text-emerald-600 font-medium' : ''}>
-                        {record._kpi2 ? '1차+2차' : '1차'}
-                      </span>
-                      <span>이행률 {pct(record._kpi1?.completion_rate ?? 0)}</span>
-                      <span>정답률 {pct(record._kpi1?.accuracy_rate ?? 0)}</span>
+              <div key={student.id}>
+                <div className="flex items-center px-5 py-4 gap-4">
+                  <div className={`flex-1 min-w-0 ${isAbsent ? 'opacity-50' : ''}`}>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-medium text-gray-900">{student.name}</span>
+                      {student.grade && <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded">{student.grade}</span>}
+                      {isAbsent && (
+                        <span className="text-xs bg-red-100 text-red-600 px-2 py-0.5 rounded-full font-medium">결석</span>
+                      )}
+                      {record?.clinic_flag && (
+                        <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full font-medium">클리닉</span>
+                      )}
                     </div>
-                  ) : (
-                    <div className="text-xs text-gray-400 mt-1">이 날짜 채점 기록 없음</div>
-                  )}
-                </div>
-                <button type="button" onClick={() => toggleAbsence(student.id)} className="flex items-center gap-1.5 flex-shrink-0">
-                  <div className={`relative w-9 h-5 rounded-full transition-colors duration-200 ${isAbsent ? 'bg-red-500' : 'bg-gray-300'}`}>
-                    <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all duration-200 ${isAbsent ? 'left-4' : 'left-0.5'}`} />
+                    {record ? (
+                      <div className="text-xs text-gray-500 mt-1 flex gap-3 flex-wrap">
+                        <span>{unit?.unit_name ?? '단원 없음'}</span>
+                        <span className={record._kpi2 ? 'text-emerald-600 font-medium' : ''}>
+                          {record._kpi2 ? '1차+2차' : '1차'}
+                        </span>
+                        <span>이행률 {pct(record._kpi1?.completion_rate ?? 0)}</span>
+                        <span>정답률 {pct(record._kpi1?.accuracy_rate ?? 0)}</span>
+                      </div>
+                    ) : (
+                      <div className="text-xs text-gray-400 mt-1">이 숙제 채점 기록 없음</div>
+                    )}
                   </div>
-                  <span className={`text-xs font-medium transition-colors ${isAbsent ? 'text-red-600' : 'text-gray-400'}`}>
-                    결석
-                  </span>
-                </button>
-                <div className="flex gap-2">
-                  <Link
-                    to={gradingLink(student.id)}
-                    className="px-3 py-1.5 bg-indigo-50 text-indigo-700 rounded text-xs font-medium hover:bg-indigo-100 transition-colors"
-                  >
-                    채점 입력
-                  </Link>
+                  <button type="button" onClick={() => toggleAbsence(student.id)} className="flex items-center gap-1.5 flex-shrink-0">
+                    <div className={`relative w-9 h-5 rounded-full transition-colors duration-200 ${isAbsent ? 'bg-red-500' : 'bg-gray-300'}`}>
+                      <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all duration-200 ${isAbsent ? 'left-4' : 'left-0.5'}`} />
+                    </div>
+                    <span className={`text-xs font-medium transition-colors ${isAbsent ? 'text-red-600' : 'text-gray-400'}`}>
+                      결석
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => toggleGrading(student.id)}
+                    className={`px-3 py-1.5 rounded text-xs font-medium transition-colors flex-shrink-0 ${
+                      isExpanded
+                        ? 'bg-indigo-600 text-white hover:bg-indigo-700'
+                        : 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100'
+                    }`}>
+                    {isExpanded ? '닫기 ▲' : '채점 입력 ▼'}
+                  </button>
                 </div>
+
+                {/* 인라인 채점 패널 */}
+                {isExpanded && (
+                  <div className="px-5 pb-5 bg-indigo-50/40 border-t border-indigo-100 pt-4">
+                    <GradingPanel
+                      units={units}
+                      records={records}
+                      pendingRecords={pendingRecords}
+                      pendingLoading={pendingLoading}
+                      onSaveFirst={(f, kpi1) => handleSaveFirst(student.id, f, kpi1)}
+                      onSaveSecond={handleSaveSecond}
+                      onEdit={handleEdit}
+                      onDelete={handleDelete}
+                      onClose={() => setExpandedStudentId(null)}
+                    />
+                  </div>
+                )}
               </div>
             );
           })}
