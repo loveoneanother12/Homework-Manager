@@ -7,13 +7,11 @@ import { pct } from '../lib/kpi.js';
 const CARD_W = 378;
 const CARD_H = 302;
 
-// PDF 캡처(html2canvas) 시 텍스트가 1px가량 내려앉는 보정.
+// PDF 캡처(html2canvas) 시 텍스트가 내려앉는 보정.
 // 박스·바·하이라이트 배경은 그대로 두고 텍스트만 위로 올린다.
-const LIFT = { position: 'relative', top: -1 };
+const LIFT_PX = 5;
+const LIFT = { position: 'relative', top: -LIFT_PX };
 const lift = pdfMode => (pdfMode ? LIFT : null);
-// 배경이 글자와 같은 요소에 있는 pill은 요소를 움직이면 배경도 움직이므로,
-// 위 패딩을 줄이고 아래 패딩을 늘려 박스 크기는 유지한 채 글자만 올린다.
-const pillPad = (pdfMode, v, h) => (pdfMode ? `${v - 1}px ${h}px ${v + 1}px` : `${v}px ${h}px`);
 
 function Bar({ rate, color = '#6366f1' }) {
   return (
@@ -39,7 +37,11 @@ function ScorePill({ value, pdfMode }) {
   if (!value) return null;
   const map = { good: { label: '우수', bg: '#dcfce7', color: '#166534' }, needs_work: { label: '보통', bg: '#fef9c3', color: '#854d0e' }, poor: { label: '미흡', bg: '#fee2e2', color: '#991b1b' } };
   const { label, bg, color } = map[value] || { label: value, bg: '#f3f4f6', color: '#374151' };
-  return <span style={{ fontSize: 9, padding: pillPad(pdfMode, 1, 6), borderRadius: 9, background: bg, color, fontWeight: 600 }}>{label}</span>;
+  return (
+    <span style={{ fontSize: 9, padding: '1px 6px', borderRadius: 9, background: bg, color, fontWeight: 600 }}>
+      <span style={lift(pdfMode) ?? undefined}>{label}</span>
+    </span>
+  );
 }
 
 function CommentLabel({ text, showReset, onReset, pdfMode }) {
@@ -74,7 +76,7 @@ const GradingCard = forwardRef(function GradingCard({
   const hasSecond = !!secondRecord;
 
   // 코멘트 본문은 배경이 같은 요소에 있으므로 패딩 재배분으로 글자만 올림
-  const commentBodyPad = pdfMode ? '4px 5px 6px' : 5;
+  const commentBodyPad = pdfMode ? `${5 - LIFT_PX}px 5px ${5 + LIFT_PX}px` : 5;
 
   return (
     <div
@@ -93,8 +95,8 @@ const GradingCard = forwardRef(function GradingCard({
     >
       {/* 클리닉 플래그 */}
       {hasClinic && (
-        <div style={{ position: 'absolute', top: 10, right: 10, background: '#ef4444', color: '#fff', fontSize: 9, fontWeight: 700, padding: pillPad(pdfMode, 2, 7), borderRadius: 9 }}>
-          클리닉 대상
+        <div style={{ position: 'absolute', top: 10, right: 10, background: '#ef4444', color: '#fff', fontSize: 9, fontWeight: 700, padding: '2px 7px', borderRadius: 9 }}>
+          <span style={lift(pdfMode) ?? undefined}>클리닉 대상</span>
         </div>
       )}
 
@@ -119,8 +121,16 @@ const GradingCard = forwardRef(function GradingCard({
           <KpiRow label="정답률" rate={kpi1.accuracy_rate} color="#10b981" pdfMode={pdfMode} />
           <div style={{ marginTop: 6, fontSize: 9, color: '#6b7280', marginBottom: 2, ...lift(pdfMode) }}>오답 유형</div>
           <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-            {kpi1.gave_up_rate > 0 && <span style={{ fontSize: 9, padding: pillPad(pdfMode, 1, 5), background: '#fee2e2', color: '#991b1b', borderRadius: 6 }}>미완결 {pct(kpi1.gave_up_rate)}</span>}
-            {kpi1.wrong_rate > 0 && <span style={{ fontSize: 9, padding: pillPad(pdfMode, 1, 5), background: '#e0e7ff', color: '#3730a3', borderRadius: 6 }}>오답 {pct(kpi1.wrong_rate)}</span>}
+            {kpi1.gave_up_rate > 0 && (
+              <span style={{ fontSize: 9, padding: '1px 5px', background: '#fee2e2', color: '#991b1b', borderRadius: 6 }}>
+                <span style={lift(pdfMode) ?? undefined}>미완결 {pct(kpi1.gave_up_rate)}</span>
+              </span>
+            )}
+            {kpi1.wrong_rate > 0 && (
+              <span style={{ fontSize: 9, padding: '1px 5px', background: '#e0e7ff', color: '#3730a3', borderRadius: 6 }}>
+                <span style={lift(pdfMode) ?? undefined}>오답 {pct(kpi1.wrong_rate)}</span>
+              </span>
+            )}
           </div>
           <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 5, fontSize: 9, color: '#6b7280' }}>
             <span style={lift(pdfMode) ?? undefined}>서술</span> <ScorePill value={record.process_score} pdfMode={pdfMode} />
