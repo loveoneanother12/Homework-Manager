@@ -34,7 +34,25 @@ function ScorePill({ value }) {
   return <span style={{ fontSize: 9, padding: '1px 6px', borderRadius: 9, background: bg, color, fontWeight: 600 }}>{label}</span>;
 }
 
-const GradingCard = forwardRef(function GradingCard({ record, student, unit, secondRecord, onCommentChange, onCommentChange2, editable = false }, ref) {
+function CommentLabel({ text, showReset, onReset }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
+      <span style={{ fontSize: 9, fontWeight: 600, color: '#6b7280' }}>{text}</span>
+      {showReset && (
+        <button type="button" onClick={onReset}
+          style={{ fontSize: 9, color: '#6366f1', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+          ↺ 자동 코멘트로
+        </button>
+      )}
+    </div>
+  );
+}
+
+const GradingCard = forwardRef(function GradingCard({
+  record, student, unit, secondRecord,
+  onCommentChange, onCommentChange2, onCommentReset, onCommentReset2, onFlush,
+  editable = false,
+}, ref) {
   if (!record || !student) return null;
 
   const kpi1 = record._kpi1;
@@ -104,11 +122,14 @@ const GradingCard = forwardRef(function GradingCard({ record, student, unit, sec
         <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
           {hasSecond ? (
             <>
-              <div style={{ fontSize: 9, fontWeight: 600, color: '#6b7280', marginBottom: 2 }}>이번 과제 코멘트</div>
+              <CommentLabel text="이번 과제 코멘트"
+                showReset={editable && !!record.manual_comment}
+                onReset={() => onCommentReset?.(record.id)} />
               {editable ? (
                 <textarea
                   value={displayComment}
                   onChange={e => onCommentChange?.(record.id, e.target.value)}
+                  onBlur={() => onFlush?.()}
                   style={{ height: 80, fontSize: 10, lineHeight: 1.6, color: '#1f2937', border: '1px solid #d1d5db', borderRadius: 4, padding: 5, resize: 'none', fontFamily: 'inherit', background: '#f9fafb' }}
                 />
               ) : (
@@ -117,11 +138,14 @@ const GradingCard = forwardRef(function GradingCard({ record, student, unit, sec
                 </div>
               )}
               <div style={{ borderTop: '1px solid #e5e7eb', margin: '4px 0' }} />
-              <div style={{ fontSize: 9, fontWeight: 600, color: '#6b7280', marginBottom: 2 }}>오답노트 피드백</div>
+              <CommentLabel text="오답노트 피드백"
+                showReset={editable && !!secondRecord.manual_comment_2}
+                onReset={() => onCommentReset2?.(secondRecord.id)} />
               {editable ? (
                 <textarea
                   value={displayComment2}
                   onChange={e => onCommentChange2?.(secondRecord.id, e.target.value)}
+                  onBlur={() => onFlush?.()}
                   style={{ height: 72, fontSize: 10, lineHeight: 1.6, color: '#1f2937', border: '1px solid #d1d5db', borderRadius: 4, padding: 5, resize: 'none', fontFamily: 'inherit', background: '#f9fafb' }}
                 />
               ) : (
@@ -132,11 +156,14 @@ const GradingCard = forwardRef(function GradingCard({ record, student, unit, sec
             </>
           ) : (
             <>
-              <div style={{ fontSize: 10, fontWeight: 600, color: '#6b7280', marginBottom: 4 }}>강사 코멘트</div>
+              <CommentLabel text="강사 코멘트"
+                showReset={editable && !!record.manual_comment}
+                onReset={() => onCommentReset?.(record.id)} />
               {editable ? (
                 <textarea
                   value={displayComment}
                   onChange={e => onCommentChange?.(record.id, e.target.value)}
+                  onBlur={() => onFlush?.()}
                   style={{ flex: 1, minHeight: 80, fontSize: 10, lineHeight: 1.6, color: '#1f2937', border: '1px solid #d1d5db', borderRadius: 4, padding: 5, resize: 'none', fontFamily: 'inherit', background: '#f9fafb' }}
                 />
               ) : (

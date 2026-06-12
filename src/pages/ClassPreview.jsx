@@ -26,6 +26,40 @@ export default function ClassPreview() {
   const cardRefs = useRef({});
   const pdfCardRefs = useRef({});
 
+  // 코멘트 디바운스 저장 — 키 입력마다 쓰지 않고 0.8초 멈추면 저장
+  const saveTimers = useRef({});   // key('1:id'|'2:id') → timeout id
+  const pendingSaves = useRef({}); // key → 저장 함수 (항상 최신 값의 클로저)
+  const [saveStates, setSaveStates] = useState({}); // key → 'pending' | 'saved'
+
+  async function flushSave(key) {
+    clearTimeout(saveTimers.current[key]);
+    const fn = pendingSaves.current[key];
+    if (!fn) return;
+    delete pendingSaves.current[key];
+    await fn();
+    setSaveStates(s => ({ ...s, [key]: 'saved' }));
+  }
+
+  function scheduleSave(key, fn) {
+    pendingSaves.current[key] = fn;
+    clearTimeout(saveTimers.current[key]);
+    setSaveStates(s => ({ ...s, [key]: 'pending' }));
+    saveTimers.current[key] = setTimeout(() => flushSave(key), 800);
+  }
+
+  function flushAll() {
+    return Promise.all(Object.keys(pendingSaves.current).map(k => flushSave(k)));
+  }
+
+  // 페이지 이탈 시 미저장분 발사 (fire-and-forget)
+  useEffect(() => () => {
+    for (const k of Object.keys(pendingSaves.current)) {
+      const fn = pendingSaves.current[k];
+      delete pendingSaves.current[k];
+      fn?.();
+    }
+  }, []);
+
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
@@ -65,20 +99,44 @@ export default function ClassPreview() {
 
   useEffect(() => { refresh(); }, [refresh]);
 
-  async function handleCommentChange(recordId, value) {
-    await updateRecordComment(recordId, value);
+  function handleCommentChange(recordId, value) {
     setEntries(prev => prev.map(e =>
       e.record?.id === recordId ? { ...e, record: { ...e.record, manual_comment: value } } : e
     ));
+    scheduleSave(`1:${recordId}`, () => updateRecordComment(recordId, value));
   }
 
-  async function handleCommentChange2(recordId, value) {
-    await updateRecordComment2(recordId, value);
+  function handleCommentChange2(recordId, value) {
     setEntries(prev => prev.map(e =>
       e.secondRecord?.id === recordId
         ? { ...e, secondRecord: { ...e.secondRecord, manual_comment_2: value } }
         : e
     ));
+    scheduleSave(`2:${recordId}`, () => updateRecordComment2(recordId, value));
+  }
+
+  async function handleCommentReset(recordId) {
+    if (!confirm('수정한 코멘트를 버리고 자동 생성 코멘트로 되돌리시겠습니까?')) return;
+    clearTimeout(saveTimers.current[`1:${recordId}`]);
+    delete pendingSaves.current[`1:${recordId}`];
+    await updateRecordComment(recordId, null);
+    setEntries(prev => prev.map(e =>
+      e.record?.id === recordId ? { ...e, record: { ...e.record, manual_comment: null } } : e
+    ));
+    setSaveStates(s => ({ ...s, [`1:${recordId}`]: 'saved' }));
+  }
+
+  async function handleCommentReset2(recordId) {
+    if (!confirm('수정한 코멘트를 버리고 자동 생성 코멘트로 되돌리시겠습니까?')) return;
+    clearTimeout(saveTimers.current[`2:${recordId}`]);
+    delete pendingSaves.current[`2:${recordId}`];
+    await updateRecordComment2(recordId, null);
+    setEntries(prev => prev.map(e =>
+      e.secondRecord?.id === recordId
+        ? { ...e, secondRecord: { ...e.secondRecord, manual_comment_2: null } }
+        : e
+    ));
+    setSaveStates(s => ({ ...s, [`2:${recordId}`]: 'saved' }));
   }
 
   async function handleExportPDF() {
@@ -86,6 +144,7 @@ export default function ClassPreview() {
     if (!withRecords.length) return alert('채점 기록이 있는 학생이 없습니다.');
     setExporting(true);
     try {
+      await flushAll(); // 입력 직후 내보내도 미저장 코멘트가 누락되지 않도록
       const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
       for (let i = 0; i < withRecords.length; i++) {
         const entry = withRecords[i];
@@ -144,21 +203,36 @@ export default function ClassPreview() {
         <div className="text-center py-16 text-gray-400 text-sm">이 날짜의 채점 기록이 없습니다.</div>
       ) : (
         <div className="flex flex-wrap gap-6">
-          {withRecords.map(entry => (
-            <div key={entry.student.id} className="flex flex-col gap-2">
-              <GradingCard
-                ref={el => { cardRefs.current[entry.student.id] = el; }}
-                record={entry.record}
-                student={entry.student}
-                unit={entry.unit}
-                secondRecord={entry.secondRecord}
-                editable
-                onCommentChange={handleCommentChange}
-                onCommentChange2={handleCommentChange2}
-              />
-              <p className="text-xs text-gray-400 text-center">코멘트 텍스트 박스에서 직접 수정 가능</p>
-            </div>
-          ))}
+          {withRecords.map(entry => {
+            const stateKeys = [
+              `1:${entry.record.id}`,
+              ...(entry.secondRecord ? [`2:${entry.secondRecord.id}`] : []),
+            ];
+            const states = stateKeys.map(k => saveStates[k]).filter(Boolean);
+            const status = states.includes('pending')
+              ? { text: '저장 중…', cls: 'text-gray-400' }
+              : states.includes('saved')
+                ? { text: '저장됨 ✓', cls: 'text-emerald-600' }
+                : { text: '코멘트 텍스트 박스에서 직접 수정 가능', cls: 'text-gray-400' };
+            return (
+              <div key={entry.student.id} className="flex flex-col gap-2">
+                <GradingCard
+                  ref={el => { cardRefs.current[entry.student.id] = el; }}
+                  record={entry.record}
+                  student={entry.student}
+                  unit={entry.unit}
+                  secondRecord={entry.secondRecord}
+                  editable
+                  onCommentChange={handleCommentChange}
+                  onCommentChange2={handleCommentChange2}
+                  onCommentReset={handleCommentReset}
+                  onCommentReset2={handleCommentReset2}
+                  onFlush={flushAll}
+                />
+                <p className={`text-xs text-center ${status.cls}`}>{status.text}</p>
+              </div>
+            );
+          })}
         </div>
       )}
 
