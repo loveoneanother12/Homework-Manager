@@ -33,13 +33,13 @@ function DayToggle({ value, onChange }) {
 }
 
 function StudentForm({ onSave, onCancel, saving }) {
-  const [form, setForm] = useState({ name: '', grade: '' });
+  const [form, setForm] = useState({ name: '', grade: '', school: '' });
 
   return (
     <form onSubmit={e => { e.preventDefault(); onSave(form); }}
       className="bg-white border border-indigo-100 rounded-xl p-5 mb-4 shadow-sm space-y-4">
       <h3 className="font-semibold text-gray-800">새 학생 추가</h3>
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-3 gap-4">
         <div>
           <label className="block text-xs font-medium text-gray-600 mb-1">학생 이름</label>
           <input
@@ -61,6 +61,14 @@ function StudentForm({ onSave, onCancel, saving }) {
               <option key={g} value={g}>{g}</option>
             ))}
           </select>
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-gray-600 mb-1">학교</label>
+          <input
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            value={form.school}
+            onChange={e => setForm(f => ({ ...f, school: e.target.value }))}
+            placeholder="예: 대치중학교" />
         </div>
       </div>
       <div className="flex gap-2">
@@ -251,7 +259,7 @@ export default function ManagePage() {
     if (!form.name.trim()) return;
     setStudentSaving(true);
     try {
-      const s = await addStudent({ name: form.name.trim(), grade: form.grade || null });
+      const s = await addStudent({ name: form.name.trim(), grade: form.grade || null, school: form.school.trim() || null });
       setAllStudents(prev => [...prev, s].sort((a, b) => a.name.localeCompare(b.name, 'ko')));
       setStudentFormOpen(false);
     } finally { setStudentSaving(false); }
@@ -481,6 +489,9 @@ export default function ManagePage() {
                     ? <span className="text-xs text-gray-600 bg-gray-100 px-2 py-0.5 rounded flex-shrink-0">{s.grade}</span>
                     : <span className="w-10 flex-shrink-0" />
                   }
+                  {s.school && (
+                    <span className="text-xs text-gray-500 flex-shrink-0">{s.school}</span>
+                  )}
                   <div className="flex-1 flex gap-1.5 flex-wrap">
                     {classNames.length > 0
                       ? classNames.map(cn => (

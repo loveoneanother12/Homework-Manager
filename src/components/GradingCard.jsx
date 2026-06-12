@@ -1,7 +1,7 @@
 import { forwardRef } from 'react';
 import { pct } from '../lib/kpi.js';
 
-// 카드 고정 크기: 378px × 302px (≈10cm × 8cm @ 96dpi)
+// 카드 고정 크기: 378px × 302px (≈10cm × 5cm @ 96dpi)
 // html2canvas 캡처 대상 — 외부 스타일 의존 금지, 인라인 스타일 사용
 
 const CARD_W = 378;
@@ -18,7 +18,7 @@ function Bar({ rate, color = '#6366f1' }) {
 function KpiRow({ label, rate, color }) {
   return (
     <div style={{ marginBottom: 4 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginBottom: 2 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9, marginBottom: 2 }}>
         <span style={{ color: '#6b7280' }}>{label}</span>
         <span style={{ fontWeight: 600, color: '#111827' }}>{pct(rate)}</span>
       </div>
@@ -31,7 +31,7 @@ function ScorePill({ value }) {
   if (!value) return null;
   const map = { good: { label: '우수', bg: '#dcfce7', color: '#166534' }, needs_work: { label: '보통', bg: '#fef9c3', color: '#854d0e' }, poor: { label: '미흡', bg: '#fee2e2', color: '#991b1b' } };
   const { label, bg, color } = map[value] || { label: value, bg: '#f3f4f6', color: '#374151' };
-  return <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 9, background: bg, color, fontWeight: 600 }}>{label}</span>;
+  return <span style={{ fontSize: 9, padding: '1px 6px', borderRadius: 9, background: bg, color, fontWeight: 600 }}>{label}</span>;
 }
 
 const GradingCard = forwardRef(function GradingCard({ record, student, unit, secondRecord, onCommentChange, onCommentChange2, editable = false }, ref) {
@@ -73,7 +73,7 @@ const GradingCard = forwardRef(function GradingCard({ record, student, unit, sec
       <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, marginBottom: 8, borderBottom: '1px solid #e5e7eb', paddingBottom: 6 }}>
         <span style={{ fontSize: 16, fontWeight: 700, color: '#111827' }}>{student.name}</span>
         {student.grade && <span style={{ fontSize: 11, color: '#6366f1', fontWeight: 600 }}>{student.grade}</span>}
-        <span style={{ fontSize: 11, color: '#6b7280' }}>{unit?.unit_name ?? '—'}</span>
+        <span style={{ fontSize: 9, color: '#6b7280' }}>{unit?.unit_name ?? '—'}</span>
         <span style={{ marginLeft: 'auto', fontSize: 10, color: '#9ca3af' }}>{record.created_at?.slice(0, 10)}</span>
       </div>
 
@@ -82,12 +82,12 @@ const GradingCard = forwardRef(function GradingCard({ record, student, unit, sec
         <div style={{ flex: '0 0 140px' }}>
           <KpiRow label="이행률" rate={kpi1.completion_rate} color="#6366f1" />
           <KpiRow label="정답률" rate={kpi1.accuracy_rate} color="#10b981" />
-          <div style={{ marginTop: 6, fontSize: 10, color: '#6b7280', marginBottom: 2 }}>오답 유형</div>
+          <div style={{ marginTop: 6, fontSize: 9, color: '#6b7280', marginBottom: 2 }}>오답 유형</div>
           <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
             {kpi1.gave_up_rate > 0 && <span style={{ fontSize: 9, padding: '1px 5px', background: '#fee2e2', color: '#991b1b', borderRadius: 6 }}>미완결 {pct(kpi1.gave_up_rate)}</span>}
             {kpi1.wrong_rate > 0 && <span style={{ fontSize: 9, padding: '1px 5px', background: '#e0e7ff', color: '#3730a3', borderRadius: 6 }}>오답 {pct(kpi1.wrong_rate)}</span>}
           </div>
-          <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 5, fontSize: 10, color: '#6b7280' }}>
+          <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 5, fontSize: 9, color: '#6b7280' }}>
             서술 <ScorePill value={record.process_score} />
           </div>
           {/* 2차 데이터 */}
