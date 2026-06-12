@@ -78,13 +78,155 @@ function KpiBox({ kpi1, kpi2 }) {
   );
 }
 
+// ── 기록 수정 폼 ─────────────────────────────────────────────────────────────
+
+function EditRecordForm({ record, units, onSave, onCancel }) {
+  const hasSecond = record.round === 2;
+  const currentUnit = units.find(u => u.id === record.unit_id);
+  const defaultSubject = currentUnit?.subject ?? SUBJECTS[0] ?? '';
+
+  const bySubject = Object.fromEntries(SUBJECTS.map(s => [s, units.filter(u => u.subject === s)]));
+
+  const [selectedSubject, setSelectedSubject] = useState(defaultSubject);
+  const subjectUnits = selectedSubject ? (bySubject[selectedSubject] ?? []) : units.filter(u => !u.subject);
+
+  const [f, setF] = useState({
+    unit_id: record.unit_id ?? '',
+    total_count: record.total_count ?? '',
+    not_attempted: record.not_attempted ?? 0,
+    gave_up: record.gave_up ?? 0,
+    wrong_attempted: record.wrong_attempted ?? 0,
+    process_score: record.process_score ?? 'good',
+    retry_total: record.retry_total ?? 0,
+    retry_correct: record.retry_correct ?? 0,
+    retry_wrong: record.retry_wrong ?? 0,
+    retry_gave_up: record.retry_gave_up ?? 0,
+    note_quality: record.note_quality ?? 'good',
+  });
+  const [errors, setErrors] = useState([]);
+  const [saving, setSaving] = useState(false);
+
+  function handleSubjectSelect(subj) {
+    setSelectedSubject(subj);
+    setF(prev => ({ ...prev, unit_id: (bySubject[subj] ?? [])[0]?.id ?? '' }));
+  }
+
+  const filled = f.total_count !== '' && Number(f.total_count) >= 0 && f.unit_id;
+  const kpi1 = filled ? calcFirst({
+    total_count: Number(f.total_count), not_attempted: Number(f.not_attempted),
+    gave_up: Number(f.gave_up), wrong_attempted: Number(f.wrong_attempted),
+  }) : null;
+  const firstWrongs = kpi1?.first_wrongs ?? 0;
+  const kpi2 = hasSecond && kpi1 ? calcSecond({
+    retry_total: Number(f.retry_total), retry_correct: Number(f.retry_correct),
+    retry_wrong: Number(f.retry_wrong), retry_gave_up: Number(f.retry_gave_up),
+  }, firstWrongs) : null;
+
+  useEffect(() => {
+    if (!filled) { setErrors([]); return; }
+    const e1 = validate1st({
+      total_count: Number(f.total_count), not_attempted: Number(f.not_attempted),
+      gave_up: Number(f.gave_up), wrong_attempted: Number(f.wrong_attempted),
+    });
+    const e2 = hasSecond ? validate2nd({
+      retry_total: Number(f.retry_total), retry_correct: Number(f.retry_correct),
+      retry_wrong: Number(f.retry_wrong), retry_gave_up: Number(f.retry_gave_up),
+    }, firstWrongs) : [];
+    setErrors([...e1, ...e2]);
+  }, [f, filled, hasSecond, firstWrongs]);
+
+  const canSave = filled && errors.length === 0;
+
+  async function handleSave() {
+    if (!canSave) return;
+    setSaving(true);
+    try { await onSave(f, kpi1, kpi2); } finally { setSaving(false); }
+  }
+
+  return (
+    <div className="space-y-4">
+      <p className="text-sm font-semibold text-gray-700">채점 기록 수정</p>
+      <div>
+        <label className="block text-xs font-medium text-gray-600 mb-2">과목</label>
+        <div className="flex gap-2 flex-wrap">
+          {SUBJECTS.map(s => (
+            <button key={s} type="button" onClick={() => handleSubjectSelect(s)}
+              className={`px-3 py-1.5 rounded-lg border text-sm font-medium transition-all ${selectedSubject === s ? 'bg-indigo-50 border-indigo-400 text-indigo-800' : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'}`}>
+              {s}
+            </button>
+          ))}
+        </div>
+      </div>
+      {selectedSubject && (
+        <div>
+          <label className="block text-xs font-medium text-gray-600 mb-1">단원</label>
+          <select className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            value={f.unit_id} onChange={e => setF(p => ({ ...p, unit_id: e.target.value }))}>
+            {subjectUnits.length === 0
+              ? <option value="">— 등록된 단원 없음 —</option>
+              : subjectUnits.map(u => <option key={u.id} value={u.id}>{u.unit_name}</option>)}
+          </select>
+        </div>
+      )}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <NumInput label="전체 문항 수"     value={f.total_count}    onChange={v => setF(p => ({ ...p, total_count: v }))} />
+        <NumInput label="안 푼 문항 수"     value={f.not_attempted}  onChange={v => setF(p => ({ ...p, not_attempted: v }))} />
+        <NumInput label="손 못 댄 문항 수"  value={f.gave_up}        onChange={v => setF(p => ({ ...p, gave_up: v }))} />
+        <NumInput label="풀고 틀린 문항 수" value={f.wrong_attempted} onChange={v => setF(p => ({ ...p, wrong_attempted: v }))} />
+      </div>
+      <div>
+        <label className="block text-xs font-medium text-gray-600 mb-2">풀이과정 서술 수준</label>
+        <ProcessToggle value={f.process_score} onChange={v => setF(p => ({ ...p, process_score: v }))} />
+      </div>
+      {hasSecond && (
+        <div className="pt-3 border-t border-gray-100 space-y-4">
+          <p className="text-xs font-semibold text-gray-500">2차 채점 수정</p>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <NumInput label={`오답노트 작성 수 (최대 ${firstWrongs})`} value={f.retry_total}  onChange={v => setF(p => ({ ...p, retry_total: v }))} />
+            <NumInput label="재채점 맞은 수"   value={f.retry_correct} onChange={v => setF(p => ({ ...p, retry_correct: v }))} />
+            <NumInput label="재채점 틀린 수"   value={f.retry_wrong}   onChange={v => setF(p => ({ ...p, retry_wrong: v }))} />
+            <NumInput label="여전히 손 못 댄"  value={f.retry_gave_up} onChange={v => setF(p => ({ ...p, retry_gave_up: v }))} />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-2">오답노트 서술 성의</label>
+            <ProcessToggle value={f.note_quality} onChange={v => setF(p => ({ ...p, note_quality: v }))} />
+          </div>
+        </div>
+      )}
+      {errors.length > 0 && <div className="space-y-1">{errors.map((e, i) => <p key={i} className="text-xs text-red-600">⚠ {e}</p>)}</div>}
+      {kpi1 && errors.length === 0 && <KpiBox kpi1={kpi1} kpi2={kpi2} />}
+      <div className="flex gap-2 pt-1">
+        <button disabled={!canSave || saving} onClick={handleSave}
+          className={`px-6 py-2 rounded-lg text-sm font-semibold transition-all ${canSave && !saving ? 'bg-indigo-600 text-white hover:bg-indigo-700' : 'bg-gray-100 text-gray-400 cursor-not-allowed'}`}>
+          {saving ? '저장 중…' : '저장'}
+        </button>
+        <button onClick={onCancel} className="px-6 py-2 rounded-lg text-sm bg-gray-100 text-gray-700 hover:bg-gray-200">취소</button>
+      </div>
+    </div>
+  );
+}
+
 // ── 기록 카드 (이력 표시용) ──────────────────────────────────────────────────
 
-function RecordCard({ record, units, onDelete }) {
+function RecordCard({ record, units, onDelete, onEdit }) {
+  const [isEditing, setIsEditing] = useState(false);
   const unit = units.find(u => u.id === record.unit_id);
   const kpi1 = record._kpi1;
   const kpi2 = record._kpi2;
   const hasSecond = kpi2 != null;
+
+  if (isEditing) {
+    return (
+      <div className="bg-white border border-indigo-200 rounded-xl px-5 py-4">
+        <EditRecordForm
+          record={record}
+          units={units}
+          onSave={async (f, k1, k2) => { await onEdit(record.id, f, k1, k2); setIsEditing(false); }}
+          onCancel={() => setIsEditing(false)}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="bg-white border border-gray-200 rounded-xl px-5 py-4">
@@ -116,10 +258,16 @@ function RecordCard({ record, units, onDelete }) {
             </p>
           )}
         </div>
-        <button onClick={() => onDelete(record.id)}
-          className="px-3 py-1.5 text-xs bg-gray-50 text-gray-500 rounded-lg hover:bg-red-50 hover:text-red-600 transition-colors flex-shrink-0">
-          삭제
-        </button>
+        <div className="flex gap-1.5 flex-shrink-0">
+          <button onClick={() => setIsEditing(true)}
+            className="px-3 py-1.5 text-xs bg-gray-50 text-gray-500 rounded-lg hover:bg-indigo-50 hover:text-indigo-600 transition-colors">
+            수정
+          </button>
+          <button onClick={() => onDelete(record.id)}
+            className="px-3 py-1.5 text-xs bg-gray-50 text-gray-500 rounded-lg hover:bg-red-50 hover:text-red-600 transition-colors">
+            삭제
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -514,6 +662,41 @@ export default function GradingInput() {
     await refresh();
   }
 
+  async function handleEdit(id, f, kpi1, kpi2) {
+    const unit = units.find(u => u.id === f.unit_id);
+    const sentences = await getSentences();
+    const generated_comment = generateComment1st({
+      kpi1, preset_type: unit?.preset_type ?? 'default',
+      process_score: f.process_score, sentences,
+    });
+    const updateData = {
+      unit_id: f.unit_id,
+      total_count: Number(f.total_count),
+      not_attempted: Number(f.not_attempted),
+      gave_up: Number(f.gave_up),
+      wrong_attempted: Number(f.wrong_attempted),
+      process_score: f.process_score,
+      generated_comment,
+      clinic_flag: shouldFlagClinic({ kpi1, kpi2 }),
+    };
+    if (kpi2) {
+      const generated_comment_2 = generateComment2nd({
+        kpi2, retry_wrong: Number(f.retry_wrong),
+        retry_gave_up: Number(f.retry_gave_up), note_quality: f.note_quality, sentences,
+      });
+      Object.assign(updateData, {
+        retry_total: Number(f.retry_total),
+        retry_correct: Number(f.retry_correct),
+        retry_wrong: Number(f.retry_wrong),
+        retry_gave_up: Number(f.retry_gave_up),
+        note_quality: f.note_quality,
+        generated_comment_2,
+      });
+    }
+    await updateRecord(id, updateData);
+    await refresh();
+  }
+
   if (loading) return <div className="text-center py-16 text-gray-400 text-sm">불러오는 중…</div>;
   if (!student) return <div className="text-center py-16 text-gray-400">학생 정보를 불러올 수 없습니다.</div>;
 
@@ -560,7 +743,7 @@ export default function GradingInput() {
         <div className="space-y-3">
           <p className="text-xs text-gray-400 font-medium">채점 기록 ({records.length}건)</p>
           {records.map(r => (
-            <RecordCard key={r.id} record={r} units={units} onDelete={handleDelete} />
+            <RecordCard key={r.id} record={r} units={units} onDelete={handleDelete} onEdit={handleEdit} />
           ))}
         </div>
       )}

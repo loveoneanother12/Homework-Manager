@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link, useParams, useNavigate, useSearchParams, useLocation } from 'react-router-dom';
-import { getClassByName, getStudentsByClassId, getRecordsByStudentIds, getUnits, deleteStudent } from '../lib/store.js';
+import { getClassByName, getStudentsByClassId, getRecordsByStudentIds, getUnits } from '../lib/store.js';
 import { pct } from '../lib/kpi.js';
 import { today } from '../lib/dateUtils.js';
 import DateSelector from '../components/DateSelector.jsx';
@@ -46,12 +46,6 @@ export default function StudentList() {
   }
 
   useEffect(() => { refresh(); }, [decoded, sessionDate, locationKey]);
-
-  async function handleDelete(id, name) {
-    if (!confirm(`'${name}' 학생을 삭제하시겠습니까?`)) return;
-    await deleteStudent(id);
-    await refresh();
-  }
 
   const gradingLink = (studentId) => `/student/${studentId}/grade?date=${sessionDate}&class=${encodeURIComponent(decoded)}`;
   const previewLink = `/class/${className}/preview?date=${sessionDate}`;
@@ -117,12 +111,6 @@ export default function StudentList() {
                 >
                   채점 입력
                 </Link>
-                <button
-                  onClick={() => handleDelete(student.id, student.name)}
-                  className="px-3 py-1.5 bg-gray-50 text-gray-500 rounded text-xs hover:bg-red-50 hover:text-red-600 transition-colors"
-                >
-                  삭제
-                </button>
               </div>
             </div>
           ))}
