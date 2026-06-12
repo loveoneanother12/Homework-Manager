@@ -242,6 +242,7 @@ export default function ClassPreview() {
                   student={entry.student}
                   unit={entry.unit}
                   secondRecord={entry.secondRecord}
+                  classLabel={decoded}
                   editable
                   onCommentChange={handleCommentChange}
                   onCommentChange2={handleCommentChange2}
@@ -266,7 +267,9 @@ export default function ClassPreview() {
             student={entry.student}
             unit={entry.unit}
             secondRecord={entry.secondRecord}
+            classLabel={decoded}
             editable={false}
+            pdfMode
           />
         ))}
       </div>

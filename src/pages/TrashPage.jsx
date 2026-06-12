@@ -263,6 +263,7 @@ export default function TrashPage() {
                           record={r}
                           student={student}
                           unit={unitById[r.unit_id] ?? null}
+                          classLabel={selectedClass?.class_name}
                           editable={false}
                         />
                       ) : (

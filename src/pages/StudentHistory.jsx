@@ -289,7 +289,7 @@ export default function StudentHistory() {
             {records.map(r => (
               <div key={r.id}>
                 <p className="text-xs text-gray-400 mb-2 font-medium">{r.session_date}</p>
-                <GradingCard record={r} student={student} unit={r._unit} editable={false} />
+                <GradingCard record={r} student={student} unit={r._unit} classLabel={cls?.class_name} editable={false} />
               </div>
             ))}
           </div>
