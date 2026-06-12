@@ -9,6 +9,7 @@ import SentenceManagement from './pages/SentenceManagement.jsx';
 import ManagePage from './pages/ManagePage.jsx';
 import StudentHistory from './pages/StudentHistory.jsx';
 import TrashPage from './pages/TrashPage.jsx';
+import HomeworkList from './pages/HomeworkList.jsx';
 
 export default function App() {
   return (
@@ -18,9 +19,10 @@ export default function App() {
           <Route path="/" element={<ClassList />} />
           <Route path="/manage" element={<ManagePage />} />
           <Route path="/student/:studentId/history" element={<StudentHistory />} />
-          <Route path="/class/:className" element={<StudentList />} />
+          <Route path="/class/:className" element={<HomeworkList />} />
+          <Route path="/class/:className/hw/:homeworkId" element={<StudentList />} />
           <Route path="/student/:studentId/grade" element={<GradingInput />} />
-          <Route path="/class/:className/preview" element={<ClassPreview />} />
+          <Route path="/class/:className/hw/:homeworkId/preview" element={<ClassPreview />} />
           <Route path="/units" element={<UnitManagement />} />
           <Route path="/sentences" element={<SentenceManagement />} />
           <Route path="/trash" element={<TrashPage />} />

@@ -209,6 +209,56 @@ export async function setAbsence(classId, studentId, sessionDate, value) {
   }
 }
 
+// ── 숙제 (반+날짜별 과제 단위) ────────────────────────────────────────────────
+
+export async function getHomeworks(classId, sessionDate) {
+  const { data, error } = await supabase.from('hw_homeworks').select('*')
+    .eq('class_id', classId).eq('session_date', sessionDate)
+    .order('period').order('created_at');
+  if (error) throw error;
+  return data ?? [];
+}
+
+export async function getHomework(id) {
+  if (!id) return null;
+  const { data } = await supabase.from('hw_homeworks').select('*').eq('id', id).maybeSingle();
+  return data ?? null;
+}
+
+export async function addHomework(classId, sessionDate, title, period = null) {
+  const { data, error } = await supabase.from('hw_homeworks')
+    .insert({ class_id: classId, session_date: sessionDate, title, period }).select().single();
+  if (error) throw error;
+  return data;
+}
+
+export async function updateHomework(id, updates) {
+  const { error } = await supabase.from('hw_homeworks').update(updates).eq('id', id);
+  if (error) throw error;
+}
+
+export async function deleteHomework(id) {
+  const { error } = await supabase.from('hw_homeworks').delete().eq('id', id);
+  if (error) throw error;
+}
+
+export async function countLiveRecordsByHomework(homeworkId) {
+  const { count, error } = await supabase.from('hw_homework_records')
+    .select('*', { count: 'exact', head: true })
+    .eq('homework_id', homeworkId).is('deleted_at', null);
+  if (error) throw error;
+  return count ?? 0;
+}
+
+// 숙제 카드별 채점 학생 수 계산용
+export async function getRecordsByClassDate(classId, sessionDate) {
+  const { data, error } = await supabase.from('hw_homework_records')
+    .select('homework_id, student_id')
+    .eq('class_id', classId).eq('session_date', sessionDate).is('deleted_at', null);
+  if (error) throw error;
+  return data ?? [];
+}
+
 // ── 단원 프리셋 ───────────────────────────────────────────────────────────────
 
 export async function getUnits() {
@@ -258,12 +308,13 @@ export async function countRecordsByClass(classId) {
   return count ?? 0;
 }
 
-export async function getRecordsByStudent(studentId, sessionDate = null, classId = null) {
+export async function getRecordsByStudent(studentId, sessionDate = null, classId = null, homeworkId = null) {
   let q = supabase.from('hw_homework_records').select('*')
     .eq('student_id', studentId).is('deleted_at', null)
     .order('created_at', { ascending: false });
   if (sessionDate) q = q.eq('session_date', sessionDate);
   if (classId) q = q.eq('class_id', classId);
+  if (homeworkId) q = q.eq('homework_id', homeworkId);
   const { data, error } = await q;
   if (error) throw error;
   return (data ?? []).map(withKpi);
@@ -324,13 +375,14 @@ export async function getPendingSecondRoundRecords(studentId, beforeDate, classI
   return records.map(withKpi);
 }
 
-export async function getRecordsByStudentIds(ids, sessionDate = null, classId = null) {
+export async function getRecordsByStudentIds(ids, sessionDate = null, classId = null, homeworkId = null) {
   if (!ids.length) return [];
   let q = supabase.from('hw_homework_records').select('*')
     .in('student_id', ids).is('deleted_at', null)
     .order('created_at', { ascending: false });
   if (sessionDate) q = q.eq('session_date', sessionDate);
   if (classId) q = q.eq('class_id', classId);
+  if (homeworkId) q = q.eq('homework_id', homeworkId);
   const { data, error } = await q;
   if (error) throw error;
   return (data ?? []).map(withKpi);

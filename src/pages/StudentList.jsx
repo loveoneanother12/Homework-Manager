@@ -2,41 +2,40 @@ import { useState, useEffect } from 'react';
 import { Link, useParams, useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import {
   getClassByName, getStudentsByClassId, getRecordsByStudentIds, getUnits,
-  getNoHomework, setNoHomework, getAbsentStudentIds, setAbsence,
+  getAbsentStudentIds, setAbsence, getHomework,
 } from '../lib/store.js';
 import { pct } from '../lib/kpi.js';
 import { today } from '../lib/dateUtils.js';
 import DateSelector from '../components/DateSelector.jsx';
 
 export default function StudentList() {
-  const { className } = useParams();
+  const { className, homeworkId } = useParams();
   const navigate = useNavigate();
   const decoded = decodeURIComponent(className);
 
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams] = useSearchParams();
   const sessionDate = searchParams.get('date') ?? today();
   const { key: locationKey } = useLocation();
 
   const [entries, setEntries] = useState([]); // [{student, record, unit}]
   const [loading, setLoading] = useState(true);
   const [classId, setClassId] = useState(null);
-  const [noHomework, setNoHomeworkFlag] = useState(false);
+  const [homework, setHomework] = useState(null);
   const [absentIds, setAbsentIds] = useState(new Set());
 
   async function refresh() {
     setLoading(true);
     try {
-      const cls = await getClassByName(decoded);
+      const [cls, hw] = await Promise.all([getClassByName(decoded), getHomework(homeworkId)]);
       const resolvedClassId = cls?.id ?? null;
       setClassId(resolvedClassId);
+      setHomework(hw);
       const students = resolvedClassId ? await getStudentsByClassId(resolvedClassId) : [];
-      const [allRecords, units, noHw, absentList] = await Promise.all([
-        getRecordsByStudentIds(students.map(s => s.id), sessionDate, resolvedClassId),
+      const [allRecords, units, absentList] = await Promise.all([
+        getRecordsByStudentIds(students.map(s => s.id), sessionDate, resolvedClassId, homeworkId),
         getUnits(),
-        resolvedClassId ? getNoHomework(resolvedClassId, sessionDate) : false,
         resolvedClassId ? getAbsentStudentIds(resolvedClassId, sessionDate) : [],
       ]);
-      setNoHomeworkFlag(noHw);
       setAbsentIds(new Set(absentList));
       const unitsById = Object.fromEntries(units.map(u => [u.id, u]));
 
@@ -54,13 +53,7 @@ export default function StudentList() {
     }
   }
 
-  useEffect(() => { refresh(); }, [decoded, sessionDate, locationKey]);
-
-  async function toggleNoHomework() {
-    const next = !noHomework;
-    setNoHomeworkFlag(next);
-    await setNoHomework(classId, sessionDate, next);
-  }
+  useEffect(() => { refresh(); }, [decoded, homeworkId, sessionDate, locationKey]);
 
   async function toggleAbsence(studentId) {
     const next = !absentIds.has(studentId);
@@ -72,8 +65,8 @@ export default function StudentList() {
     await setAbsence(classId, studentId, sessionDate, next);
   }
 
-  const gradingLink = (studentId) => `/student/${studentId}/grade?date=${sessionDate}&class=${encodeURIComponent(decoded)}`;
-  const previewLink = `/class/${className}/preview?date=${sessionDate}`;
+  const gradingLink = (studentId) => `/student/${studentId}/grade?date=${sessionDate}&class=${encodeURIComponent(decoded)}&hw=${homeworkId}`;
+  const previewLink = `/class/${className}/hw/${homeworkId}/preview?date=${sessionDate}`;
 
   const doneCount = entries.filter(e => e.record).length;
 
@@ -82,41 +75,30 @@ export default function StudentList() {
   return (
     <div>
       <div className="flex items-center gap-3 mb-6">
-        <button onClick={() => navigate('/')} className="text-gray-400 hover:text-gray-600 text-sm">← 반 목록</button>
+        <button onClick={() => navigate(`/class/${className}?date=${sessionDate}`)} className="text-gray-400 hover:text-gray-600 text-sm">← 숙제 목록</button>
         <h1 className="text-2xl font-bold text-gray-900">{decoded}</h1>
+        {homework && (
+          <span className="text-sm font-medium text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-lg">
+            {homework.period ? `${homework.period}교시 · ` : ''}{homework.title}
+          </span>
+        )}
       </div>
 
-      {/* 날짜 선택 */}
+      {/* 날짜 선택 — 숙제는 날짜에 속하므로 날짜 변경 시 그 날짜의 숙제 목록으로 이동 */}
       <div className="mb-5 flex items-center gap-3 flex-wrap">
-        <DateSelector date={sessionDate} onChange={d => setSearchParams({ date: d })} />
+        <DateSelector date={sessionDate} onChange={d => navigate(`/class/${className}?date=${d}`)} />
         <span className="text-xs text-gray-400">채점 완료 {doneCount} / {entries.length}명</span>
       </div>
 
       <div className="flex justify-between items-center mb-4">
-        <div className="flex items-center gap-4">
-          <p className="text-sm text-gray-500">학생 {entries.length}명</p>
-          <button type="button" onClick={toggleNoHomework} className="flex items-center gap-2 flex-shrink-0">
-            <div className={`relative w-9 h-5 rounded-full transition-colors duration-200 ${noHomework ? 'bg-amber-500' : 'bg-gray-300'}`}>
-              <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all duration-200 ${noHomework ? 'left-4' : 'left-0.5'}`} />
-            </div>
-            <span className={`text-xs font-medium whitespace-nowrap transition-colors ${noHomework ? 'text-amber-600' : 'text-gray-500'}`}>
-              숙제 없음
-            </span>
-          </button>
-        </div>
+        <p className="text-sm text-gray-500">학생 {entries.length}명</p>
         <Link
           to={previewLink}
           className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 transition-colors"
         >
-          반 평가서 미리보기 / PDF
+          평가서 미리보기 / PDF
         </Link>
       </div>
-
-      {noHomework && (
-        <div className="mb-4 bg-amber-50 border border-amber-200 rounded-lg px-4 py-2 text-sm text-amber-700">
-          이 날짜는 숙제가 없는 날로 저장되었습니다.
-        </div>
-      )}
 
       {entries.length === 0 ? (
         <div className="text-center py-16 text-gray-400 text-sm">이 반에 학생이 없습니다.</div>

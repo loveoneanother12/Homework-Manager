@@ -3,7 +3,7 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 import GradingCard, { CARD_W, CARD_H } from '../components/GradingCard.jsx';
-import { getClassByName, getStudentsByClassId, getRecordsByStudentIds, getSecondRoundsByDate, getUnits, updateRecordComment, updateRecordComment2, getAbsentStudentIds } from '../lib/store.js';
+import { getClassByName, getStudentsByClassId, getRecordsByStudentIds, getSecondRoundsByDate, getUnits, updateRecordComment, updateRecordComment2, getAbsentStudentIds, getHomework } from '../lib/store.js';
 import { today } from '../lib/dateUtils.js';
 import DateSelector from '../components/DateSelector.jsx';
 
@@ -13,14 +13,15 @@ const CARD_MM_H = 50;                        // 50mm = 5cm
 const CARDS_PER_PAGE = 10;                   // 2cols × 5rows
 
 export default function ClassPreview() {
-  const { className } = useParams();
+  const { className, homeworkId } = useParams();
   const navigate = useNavigate();
   const decoded = decodeURIComponent(className);
 
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams] = useSearchParams();
   const sessionDate = searchParams.get('date') ?? today();
 
   const [entries, setEntries] = useState([]);
+  const [homework, setHomework] = useState(null);
   const [absentIds, setAbsentIds] = useState(new Set());
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
@@ -64,13 +65,14 @@ export default function ClassPreview() {
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      const [cls, units] = await Promise.all([getClassByName(decoded), getUnits()]);
+      const [cls, units, hw] = await Promise.all([getClassByName(decoded), getUnits(), getHomework(homeworkId)]);
       const classId = cls?.id ?? null;
+      setHomework(hw);
       const students = classId ? await getStudentsByClassId(classId) : [];
       const studentIds = students.map(s => s.id);
 
       const [records, secondRecords, absentList] = await Promise.all([
-        getRecordsByStudentIds(studentIds, sessionDate, classId),
+        getRecordsByStudentIds(studentIds, sessionDate, classId, homeworkId),
         getSecondRoundsByDate(studentIds, sessionDate, classId),
         classId ? getAbsentStudentIds(classId, sessionDate) : [],
       ]);
@@ -98,7 +100,7 @@ export default function ClassPreview() {
     } finally {
       setLoading(false);
     }
-  }, [decoded, sessionDate]);
+  }, [decoded, homeworkId, sessionDate]);
 
   useEffect(() => { refresh(); }, [refresh]);
 
@@ -162,7 +164,7 @@ export default function ClassPreview() {
         const canvas = await html2canvas(el, { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false });
         pdf.addImage(canvas.toDataURL('image/png'), 'PNG', x + 0.5, y + 0.5, CARD_MM_W - 1, CARD_MM_H - 1);
       }
-      pdf.save(`${decoded}_평가서_${sessionDate}.pdf`);
+      pdf.save(`${decoded}_${homework?.title ?? '숙제'}_평가서_${sessionDate}.pdf`);
     } catch (err) {
       console.error(err);
       alert('PDF 생성 중 오류가 발생했습니다.');
@@ -180,13 +182,18 @@ export default function ClassPreview() {
   return (
     <div>
       <div className="flex items-center gap-3 mb-6">
-        <button onClick={() => navigate(`/class/${className}?date=${sessionDate}`)} className="text-gray-400 hover:text-gray-600 text-sm">← 학생 목록</button>
+        <button onClick={() => navigate(`/class/${className}/hw/${homeworkId}?date=${sessionDate}`)} className="text-gray-400 hover:text-gray-600 text-sm">← 학생 목록</button>
         <h1 className="text-xl font-bold text-gray-900">{decoded} — 평가서 미리보기</h1>
+        {homework && (
+          <span className="text-sm font-medium text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-lg">
+            {homework.period ? `${homework.period}교시 · ` : ''}{homework.title}
+          </span>
+        )}
       </div>
 
-      {/* 날짜 선택 */}
+      {/* 날짜 선택 — 날짜 변경 시 그 날짜의 숙제 목록으로 이동 */}
       <div className="mb-5 flex items-center gap-3 flex-wrap">
-        <DateSelector date={sessionDate} onChange={d => setSearchParams(prev => { const p = new URLSearchParams(prev); p.set('date', d); return p; })} />
+        <DateSelector date={sessionDate} onChange={d => navigate(`/class/${className}?date=${d}`)} />
       </div>
 
       <div className="flex items-center justify-between mb-4">

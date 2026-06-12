@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   getStudent, getUnits, getRecordsByStudent,
-  getPendingSecondRoundRecords, getClassByName,
+  getPendingSecondRoundRecords, getClassByName, getHomework,
   addRecord, updateRecord, deleteRecord, getSentences,
 } from '../lib/store.js';
 import { calcFirst, calcSecond, validate1st, validate2nd, pct } from '../lib/kpi.js';
@@ -554,12 +554,14 @@ export default function GradingInput() {
   const [searchParams, setSearchParams] = useSearchParams();
   const sessionDate = searchParams.get('date') ?? today();
   const className = searchParams.get('class');
+  const homeworkId = searchParams.get('hw');
 
   const classIdRef = useRef(null); // 항상 최신 classId를 참조
 
   const [student, setStudent] = useState(null);
   const [units, setUnits] = useState([]);
   const [records, setRecords] = useState([]);
+  const [homework, setHomework] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showPanel, setShowPanel] = useState(false);
   const [pendingRecords, setPendingRecords] = useState([]);
@@ -568,21 +570,23 @@ export default function GradingInput() {
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      const [s, u, cls] = await Promise.all([
+      const [s, u, cls, hw] = await Promise.all([
         getStudent(studentId),
         getUnits(),
         className ? getClassByName(className) : Promise.resolve(null),
+        getHomework(homeworkId),
       ]);
       const resolvedClassId = cls?.id ?? null;
       classIdRef.current = resolvedClassId;
-      const r = await getRecordsByStudent(studentId, sessionDate, resolvedClassId);
+      const r = await getRecordsByStudent(studentId, sessionDate, resolvedClassId, homeworkId);
       setStudent(s);
       setUnits(u);
+      setHomework(hw);
       setRecords(r);
     } finally {
       setLoading(false);
     }
-  }, [studentId, sessionDate, className]);
+  }, [studentId, sessionDate, className, homeworkId]);
 
   useEffect(() => { refresh(); }, [refresh]);
 
@@ -611,6 +615,7 @@ export default function GradingInput() {
     await addRecord({
       student_id: studentId,
       class_id: classIdRef.current,
+      homework_id: homeworkId ?? null,
       unit_id: f.unit_id,
       round: 1,
       session_date: sessionDate,
@@ -703,14 +708,29 @@ export default function GradingInput() {
   return (
     <div className="max-w-2xl mx-auto space-y-5">
       <div className="flex items-center gap-3">
-        <button onClick={() => navigate(`/class/${encodeURIComponent(className)}?date=${sessionDate}`)} className="text-gray-400 hover:text-gray-600 text-sm">← 학생 목록</button>
+        <button
+          onClick={() => navigate(homeworkId
+            ? `/class/${encodeURIComponent(className)}/hw/${homeworkId}?date=${sessionDate}`
+            : `/class/${encodeURIComponent(className)}?date=${sessionDate}`)}
+          className="text-gray-400 hover:text-gray-600 text-sm">
+          ← 학생 목록
+        </button>
         <h1 className="text-xl font-bold text-gray-900">{student.name}</h1>
         {className && <span className="text-sm text-gray-400">{className}</span>}
+        {homework && (
+          <span className="text-sm font-medium text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-lg">
+            {homework.period ? `${homework.period}교시 · ` : ''}{homework.title}
+          </span>
+        )}
       </div>
 
-      {/* 날짜 선택 */}
+      {/* 날짜 선택 — 숙제는 날짜에 속하므로 날짜 변경 시 그 날짜의 숙제 목록으로 이동 */}
       <div className="flex items-center gap-3 py-3 border-b border-gray-100">
-        <DateSelector date={sessionDate} onChange={d => { setShowPanel(false); setSearchParams(prev => { const p = new URLSearchParams(prev); p.set('date', d); return p; }); }} />
+        <DateSelector date={sessionDate} onChange={d => {
+          if (className) { navigate(`/class/${encodeURIComponent(className)}?date=${d}`); return; }
+          setShowPanel(false);
+          setSearchParams(prev => { const p = new URLSearchParams(prev); p.set('date', d); return p; });
+        }} />
       </div>
 
       {/* 과제 채점 버튼 / 패널 */}
