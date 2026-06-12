@@ -4,7 +4,9 @@ import {
   getClasses, addClass, updateClass, deleteClass,
   getStudents, getStudentsByClassId, addStudent, deleteStudent,
   addStudentToClass, removeStudentFromClass, getAllClassMemberships,
+  countRecordsByStudent, countRecordsByClass,
 } from '../lib/store.js';
+import DeleteConfirmModal from '../components/DeleteConfirmModal.jsx';
 
 const DAYS = ['월', '화', '수', '목', '금', '토', '일'];
 
@@ -154,6 +156,9 @@ export default function ManagePage() {
   const [studentSaving, setStudentSaving] = useState(false);
   const [studentSearch, setStudentSearch] = useState('');
 
+  // 삭제 확인 모달 — { type: 'class'|'student', item, recordCount }
+  const [deleteTarget, setDeleteTarget] = useState(null);
+
   async function loadData() {
     const [cls, students, mems] = await Promise.all([
       getClasses(),
@@ -220,17 +225,9 @@ export default function ManagePage() {
     } finally { setClassSaving(false); }
   }
 
-  async function handleDeleteClass(cls) {
-    const count = classStudentCounts[cls.id] ?? 0;
-    const msg = count > 0
-      ? `'${cls.class_name}'을(를) 삭제하면 이 반의 채점 기록도 함께 삭제됩니다.\n(학생 정보는 유지됩니다)\n계속하시겠습니까?`
-      : `'${cls.class_name}'을(를) 삭제하시겠습니까?`;
-    if (!confirm(msg)) return;
-    if (expandedClassId === cls.id) setExpandedClassId(null);
-    await deleteClass(cls.id);
-    const [newCls, mems] = await Promise.all([getClasses(), getAllClassMemberships()]);
-    setClasses(newCls);
-    setMemberships(mems);
+  async function askDeleteClass(cls) {
+    const recordCount = await countRecordsByClass(cls.id);
+    setDeleteTarget({ type: 'class', item: cls, recordCount });
   }
 
   // ── 반 구성원 핸들러 ──────────────────────────────────────────────────────
@@ -265,16 +262,59 @@ export default function ManagePage() {
     } finally { setStudentSaving(false); }
   }
 
-  async function handleDeleteStudent(student) {
-    const classNames = studentClassNames[student.id] ?? [];
-    const msg = classNames.length > 0
-      ? `'${student.name}'을(를) 삭제하면 모든 채점 기록도 함께 삭제됩니다.\n소속 반: ${classNames.join(', ')}\n계속하시겠습니까?`
-      : `'${student.name}'을(를) 삭제하면 모든 채점 기록도 함께 삭제됩니다. 계속하시겠습니까?`;
-    if (!confirm(msg)) return;
-    await deleteStudent(student.id);
-    setAllStudents(prev => prev.filter(s => s.id !== student.id));
-    setMemberships(prev => prev.filter(m => m.student_id !== student.id));
-    setClassStudents(prev => prev.filter(s => s.id !== student.id));
+  async function askDeleteStudent(student) {
+    const recordCount = await countRecordsByStudent(student.id);
+    setDeleteTarget({ type: 'student', item: student, recordCount });
+  }
+
+  async function confirmDelete() {
+    const { type, item } = deleteTarget;
+    if (type === 'class') {
+      if (expandedClassId === item.id) setExpandedClassId(null);
+      await deleteClass(item.id);
+      const [newCls, mems] = await Promise.all([getClasses(), getAllClassMemberships()]);
+      setClasses(newCls);
+      setMemberships(mems);
+    } else {
+      await deleteStudent(item.id);
+      setAllStudents(prev => prev.filter(s => s.id !== item.id));
+      setMemberships(prev => prev.filter(m => m.student_id !== item.id));
+      setClassStudents(prev => prev.filter(s => s.id !== item.id));
+    }
+    setDeleteTarget(null);
+  }
+
+  function deleteModalProps() {
+    const { type, item, recordCount } = deleteTarget;
+    if (type === 'class') {
+      return {
+        title: '반 삭제',
+        targetName: item.class_name,
+        requireType: recordCount > 0,
+        lines: recordCount > 0
+          ? [
+              `'${item.class_name}' 반을 삭제하면 이 반의 채점 기록 ${recordCount}건이 함께 영구 삭제됩니다.`,
+              '학생 정보는 유지됩니다. 삭제 후 복구할 수 없습니다.',
+            ]
+          : [`'${item.class_name}' 반을 삭제하시겠습니까? 이 반에는 채점 기록이 없습니다.`],
+      };
+    }
+    const classNames = studentClassNames[item.id] ?? [];
+    return {
+      title: '학생 삭제',
+      targetName: item.name,
+      requireType: recordCount > 0,
+      lines: recordCount > 0
+        ? [
+            `'${item.name}' 학생을 삭제하면 채점 기록 ${recordCount}건이 함께 영구 삭제됩니다.`,
+            ...(classNames.length > 0 ? [`소속 반: ${classNames.join(', ')}`] : []),
+            '삭제 후 복구할 수 없습니다.',
+          ]
+        : [
+            `'${item.name}' 학생을 삭제하시겠습니까? 채점 기록이 없습니다.`,
+            ...(classNames.length > 0 ? [`소속 반: ${classNames.join(', ')}`] : []),
+          ],
+    };
   }
 
   if (loading) return <div className="text-center py-16 text-gray-400 text-sm">불러오는 중…</div>;
@@ -353,7 +393,7 @@ export default function ManagePage() {
                         편집
                       </button>
                       <button
-                        onClick={e => { e.stopPropagation(); handleDeleteClass(cls); }}
+                        onClick={e => { e.stopPropagation(); askDeleteClass(cls); }}
                         className="px-3 py-1.5 text-xs text-gray-500 bg-gray-50 rounded hover:bg-red-50 hover:text-red-600 transition-colors">
                         삭제
                       </button>
@@ -500,7 +540,7 @@ export default function ManagePage() {
                       : <span className="text-xs text-gray-400">미배정</span>
                     }
                   </div>
-                  <button onClick={() => handleDeleteStudent(s)}
+                  <button onClick={() => askDeleteStudent(s)}
                     className="px-3 py-1.5 text-xs text-gray-500 bg-gray-50 rounded hover:bg-red-50 hover:text-red-600 transition-colors flex-shrink-0">
                     삭제
                   </button>
@@ -510,6 +550,15 @@ export default function ManagePage() {
           </div>
         )}
       </section>
+
+      {/* 삭제 확인 모달 */}
+      {deleteTarget && (
+        <DeleteConfirmModal
+          {...deleteModalProps()}
+          onConfirm={confirmDelete}
+          onCancel={() => setDeleteTarget(null)}
+        />
+      )}
     </div>
   );
 }

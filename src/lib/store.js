@@ -156,6 +156,20 @@ export async function deleteUnit(id) {
 
 // ── 채점 기록 ─────────────────────────────────────────────────────────────────
 
+export async function countRecordsByStudent(studentId) {
+  const { count, error } = await supabase.from('hw_homework_records')
+    .select('*', { count: 'exact', head: true }).eq('student_id', studentId);
+  if (error) throw error;
+  return count ?? 0;
+}
+
+export async function countRecordsByClass(classId) {
+  const { count, error } = await supabase.from('hw_homework_records')
+    .select('*', { count: 'exact', head: true }).eq('class_id', classId);
+  if (error) throw error;
+  return count ?? 0;
+}
+
 export async function getRecordsByStudent(studentId, sessionDate = null, classId = null) {
   let q = supabase.from('hw_homework_records').select('*')
     .eq('student_id', studentId).order('created_at', { ascending: false });
