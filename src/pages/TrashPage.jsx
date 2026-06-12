@@ -103,6 +103,17 @@ export default function TrashPage() {
   }
 
   async function handleRestoreRecord(record) {
+    // 기록이 속한 반/학생이 아직 휴지통에 있으면 복원 불가 — 먼저 복원해야 함
+    const cls = record.class_id ? classById[record.class_id] : null;
+    if (cls?.deleted_at) {
+      alert(`해당 기록의 '${cls.class_name}' 반이 휴지통에 있어 복원이 불가능합니다.\n먼저 '${cls.class_name}' 반을 복원한 뒤 다시 시도해주세요.`);
+      return;
+    }
+    const stu = studentById[record.student_id];
+    if (stu?.deleted_at) {
+      alert(`해당 기록의 '${stu.name}' 학생이 휴지통에 있어 복원이 불가능합니다.\n먼저 '${stu.name}' 학생을 복원한 뒤 다시 시도해주세요.`);
+      return;
+    }
     if (await recordConflictExists(record)) {
       alert('이미 해당 날짜에 입력된 데이터가 있어 복원이 불가합니다.');
       return;
