@@ -214,6 +214,7 @@ export async function setAbsence(classId, studentId, sessionDate, value) {
 export async function getHomeworks(classId, sessionDate) {
   const { data, error } = await supabase.from('hw_homeworks').select('*')
     .eq('class_id', classId).eq('session_date', sessionDate)
+    .is('deleted_at', null)
     .order('period').order('created_at');
   if (error) throw error;
   return data ?? [];
@@ -244,9 +245,36 @@ export async function updateHomework(id, updates) {
   if (error) throw error;
 }
 
+// soft delete — 숙제와 그 채점 기록을 같은 시각으로 휴지통 이동
 export async function deleteHomework(id) {
-  const { error } = await supabase.from('hw_homeworks').delete().eq('id', id);
+  const ts = new Date().toISOString();
+  const { error: e1 } = await supabase.from('hw_homework_records')
+    .update({ deleted_at: ts }).eq('homework_id', id).is('deleted_at', null);
+  if (e1) throw e1;
+  const { error } = await supabase.from('hw_homeworks').update({ deleted_at: ts }).eq('id', id);
   if (error) throw error;
+}
+
+export async function restoreHomework(hw) {
+  const { error: e1 } = await supabase.from('hw_homework_records')
+    .update({ deleted_at: null }).eq('homework_id', hw.id).eq('deleted_at', hw.deleted_at);
+  if (e1) throw e1;
+  const { error } = await supabase.from('hw_homeworks').update({ deleted_at: null }).eq('id', hw.id);
+  if (error) throw error;
+}
+
+export async function purgeHomework(id) {
+  let res = await supabase.from('hw_homework_records').delete().eq('homework_id', id);
+  if (res.error) throw res.error;
+  res = await supabase.from('hw_homeworks').delete().eq('id', id);
+  if (res.error) throw res.error;
+}
+
+export async function getDeletedHomeworks() {
+  const { data, error } = await supabase.from('hw_homeworks').select('*')
+    .not('deleted_at', 'is', null).order('deleted_at', { ascending: false });
+  if (error) throw error;
+  return data ?? [];
 }
 
 export async function countLiveRecordsByHomework(homeworkId) {
@@ -441,14 +469,45 @@ export async function restoreRecord(id) {
   if (error) throw error;
 }
 
-// 같은 학생·날짜·반에 살아있는 기록이 있으면 복원 시 충돌
+// ── 완전 삭제 (휴지통에서 영구 제거 — 복구 불가) ─────────────────────────────
+
+export async function purgeRecord(id) {
+  const { error } = await supabase.from('hw_homework_records').delete().eq('id', id);
+  if (error) throw error;
+}
+
+export async function purgeClass(id) {
+  // 이 반을 참조하는 기록·소속을 먼저 제거 (homeworks/sessions/absences는 FK CASCADE)
+  let res = await supabase.from('hw_homework_records').delete().eq('class_id', id);
+  if (res.error) throw res.error;
+  res = await supabase.from('hw_class_students').delete().eq('class_id', id);
+  if (res.error) throw res.error;
+  res = await supabase.from('hw_classes').delete().eq('id', id);
+  if (res.error) throw res.error;
+}
+
+export async function purgeStudent(id) {
+  let res = await supabase.from('hw_homework_records').delete().eq('student_id', id);
+  if (res.error) throw res.error;
+  res = await supabase.from('hw_class_students').delete().eq('student_id', id);
+  if (res.error) throw res.error;
+  res = await supabase.from('hw_students').delete().eq('id', id);
+  if (res.error) throw res.error;
+}
+
+// 복원 시 충돌 검사 — 숙제 기반 기록은 같은 숙제에 살아있는 기록(학생당 1기록 규칙),
+// 숙제 미지정 legacy 기록은 같은 반·날짜에 살아있는 기록이 있으면 충돌
 export async function recordConflictExists(record) {
   let q = supabase.from('hw_homework_records')
     .select('*', { count: 'exact', head: true })
     .eq('student_id', record.student_id)
-    .eq('session_date', record.session_date)
     .is('deleted_at', null);
-  q = record.class_id ? q.eq('class_id', record.class_id) : q.is('class_id', null);
+  if (record.homework_id) {
+    q = q.eq('homework_id', record.homework_id);
+  } else {
+    q = q.eq('session_date', record.session_date);
+    q = record.class_id ? q.eq('class_id', record.class_id) : q.is('class_id', null);
+  }
   const { count, error } = await q;
   if (error) throw error;
   return (count ?? 0) > 0;

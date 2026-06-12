@@ -127,11 +127,10 @@ export default function HomeworkList() {
   async function handleDeleteHomework(e, hw) {
     e.stopPropagation();
     const count = await countLiveRecordsByHomework(hw.id);
-    if (count > 0) {
-      alert(`'${hw.title}'에 채점 기록 ${count}건이 있어 삭제할 수 없습니다.\n기록을 먼저 삭제한 뒤 다시 시도하세요.`);
-      return;
-    }
-    if (!confirm(`'${hw.title}' 카드를 삭제하시겠습니까?`)) return;
+    const msg = count > 0
+      ? `'${hw.title}'을(를) 삭제하면 채점 기록 ${count}건이 함께 휴지통으로 이동합니다. 계속하시겠습니까?`
+      : `'${hw.title}' 카드를 삭제하시겠습니까? (휴지통으로 이동)`;
+    if (!confirm(msg)) return;
     await deleteHomework(hw.id);
     await refresh();
   }

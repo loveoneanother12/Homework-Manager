@@ -2,8 +2,9 @@ import { useState, useEffect, useCallback } from 'react';
 import {
   getDeletedClasses, getDeletedStudents, getDeletedRecords,
   getAllClassesIncludingDeleted, getAllStudentsIncludingDeleted, getUnits,
-  getHomeworksByIds,
-  restoreClass, restoreStudent, restoreRecord,
+  getHomeworksByIds, getDeletedHomeworks,
+  restoreClass, restoreStudent, restoreRecord, restoreHomework,
+  purgeClass, purgeStudent, purgeRecord, purgeHomework,
   classNameExists, studentNameExists, recordConflictExists,
 } from '../lib/store.js';
 import GradingCard from '../components/GradingCard.jsx';
@@ -21,20 +22,26 @@ export default function TrashPage() {
   const [loading, setLoading] = useState(true);
   const [selectedGroupKey, setSelectedGroupKey] = useState(null); // '반|날짜|숙제' 그룹 키
 
+  const [deletedHomeworks, setDeletedHomeworks] = useState([]);
+
   const refresh = useCallback(async () => {
-    const [dc, ds, dr, ac, as, u] = await Promise.all([
-      getDeletedClasses(), getDeletedStudents(), getDeletedRecords(),
+    const [dc, ds, dr, dh, ac, as, u] = await Promise.all([
+      getDeletedClasses(), getDeletedStudents(), getDeletedRecords(), getDeletedHomeworks(),
       getAllClassesIncludingDeleted(), getAllStudentsIncludingDeleted(), getUnits(),
     ]);
     setDeletedClasses(dc);
     setDeletedStudents(ds);
     setDeletedRecords(dr);
+    setDeletedHomeworks(dh);
     setAllClasses(ac);
     setAllStudents(as);
     setUnits(u);
     const hwIds = [...new Set(dr.map(r => r.homework_id).filter(Boolean))];
     const hws = await getHomeworksByIds(hwIds);
-    setHomeworksById(Object.fromEntries(hws.map(h => [h.id, h])));
+    setHomeworksById({
+      ...Object.fromEntries(hws.map(h => [h.id, h])),
+      ...Object.fromEntries(dh.map(h => [h.id, h])),
+    });
   }, []);
 
   useEffect(() => {
@@ -46,33 +53,44 @@ export default function TrashPage() {
   const studentById = Object.fromEntries(allStudents.map(s => [s.id, s]));
   const unitById = Object.fromEntries(units.map(u => [u.id, u]));
 
-  // 삭제된 채점 기록을 (반, 날짜, 숙제) 단위로 그룹핑
+  // 삭제된 채점 기록을 숙제 카드 단위로 그룹핑 (반, 날짜, 숙제)
   const recordGroups = {};
   for (const r of deletedRecords) {
     const key = `${r.class_id ?? 'none'}|${r.session_date}|${r.homework_id ?? 'none'}`;
-    if (!recordGroups[key]) recordGroups[key] = [];
-    recordGroups[key].push(r);
+    if (!recordGroups[key]) {
+      recordGroups[key] = {
+        key,
+        records: [],
+        cls: r.class_id ? classById[r.class_id] : null,
+        hw: r.homework_id ? homeworksById[r.homework_id] : null,
+        date: r.session_date,
+      };
+    }
+    recordGroups[key].records.push(r);
   }
-  const groupKeys = Object.keys(recordGroups);
-
-  // 그룹 메타: 첫 레코드에서 반·날짜·숙제·학생 명단 도출
-  function groupMeta(key) {
-    const records = recordGroups[key] ?? [];
-    const first = records[0];
-    if (!first) return null;
-    const cls = first.class_id ? classById[first.class_id] : null;
-    const hw = first.homework_id ? homeworksById[first.homework_id] : null;
-    const studentNames = [...new Set(records.map(r => r.student_id))]
-      .map(id => studentById[id]?.name ?? '알 수 없음');
-    return { records, cls, hw, date: first.session_date, studentNames };
+  // 휴지통에 있는 숙제는 기록이 없어도 카드로 표시
+  for (const hw of deletedHomeworks) {
+    const key = `${hw.class_id}|${hw.session_date}|${hw.id}`;
+    if (!recordGroups[key]) {
+      recordGroups[key] = { key, records: [], cls: classById[hw.class_id] ?? null, hw, date: hw.session_date };
+    } else if (!recordGroups[key].hw) {
+      recordGroups[key].hw = hw;
+    }
   }
+  const groupList = Object.values(recordGroups).map(g => ({
+    ...g,
+    studentNames: [...new Set(g.records.map(r => r.student_id))]
+      .map(id => studentById[id]?.name ?? '알 수 없음'),
+  }));
 
-  const selected = selectedGroupKey ? groupMeta(selectedGroupKey) : null;
+  const selected = selectedGroupKey
+    ? groupList.find(g => g.key === selectedGroupKey) ?? null
+    : null;
 
   useEffect(() => {
-    // 복원으로 그룹이 비면 모달 닫기
+    // 복원/완전 삭제로 그룹이 사라지면 모달 닫기
     if (selectedGroupKey && !recordGroups[selectedGroupKey]) setSelectedGroupKey(null);
-  }, [deletedRecords]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [deletedRecords, deletedHomeworks]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // '(구) 이름'도 이미 쓰이고 있으면 '(구2) 이름', '(구3) 이름'… 으로 회피
   async function availableRestoreName(name, existsFn) {
@@ -114,6 +132,11 @@ export default function TrashPage() {
       alert(`해당 기록의 '${stu.name}' 학생이 휴지통에 있어 복원이 불가능합니다.\n먼저 '${stu.name}' 학생을 복원한 뒤 다시 시도해주세요.`);
       return;
     }
+    const hw = record.homework_id ? homeworksById[record.homework_id] : null;
+    if (hw?.deleted_at) {
+      alert(`해당 기록의 '${hw.title}' 숙제가 휴지통에 있어 복원이 불가능합니다.\n먼저 '${hw.title}' 숙제를 복원한 뒤 다시 시도해주세요.`);
+      return;
+    }
     if (await recordConflictExists(record)) {
       alert('이미 해당 날짜에 입력된 데이터가 있어 복원이 불가합니다.');
       return;
@@ -122,9 +145,48 @@ export default function TrashPage() {
     await refresh();
   }
 
+  async function handleRestoreHomework(hw) {
+    const cls = classById[hw.class_id];
+    if (cls?.deleted_at) {
+      alert(`해당 숙제의 '${cls.class_name}' 반이 휴지통에 있어 복원이 불가능합니다.\n먼저 '${cls.class_name}' 반을 복원한 뒤 다시 시도해주세요.`);
+      return;
+    }
+    await restoreHomework(hw);
+    await refresh();
+  }
+
+  // ── 완전 삭제 ──────────────────────────────────────────────────────────────
+
+  const PURGE_MSG = '해당 데이터가 완전히 삭제되며 복구가 불가능합니다. 그래도 삭제하시겠습니까?';
+
+  async function handlePurgeClass(cls) {
+    if (!confirm(PURGE_MSG)) return;
+    await purgeClass(cls.id);
+    await refresh();
+  }
+
+  async function handlePurgeStudent(student) {
+    if (!confirm(PURGE_MSG)) return;
+    await purgeStudent(student.id);
+    await refresh();
+  }
+
+  async function handlePurgeRecord(record) {
+    if (!confirm(PURGE_MSG)) return;
+    await purgeRecord(record.id);
+    await refresh();
+  }
+
+  async function handlePurgeHomework(hw) {
+    if (!confirm(PURGE_MSG)) return;
+    await purgeHomework(hw.id);
+    await refresh();
+  }
+
   if (loading) return <div className="text-center py-16 text-gray-400 text-sm">불러오는 중…</div>;
 
-  const isEmpty = deletedRecords.length === 0 && deletedClasses.length === 0 && deletedStudents.length === 0;
+  const isEmpty = deletedRecords.length === 0 && deletedClasses.length === 0
+    && deletedStudents.length === 0 && deletedHomeworks.length === 0;
 
   return (
     <div className="space-y-10">
@@ -140,32 +202,28 @@ export default function TrashPage() {
         </div>
       )}
 
-      {/* ── 1) 채점 정보 ── */}
-      {groupKeys.length > 0 && (
+      {/* ── 1) 채점 정보 (숙제 카드 단위) ── */}
+      {groupList.length > 0 && (
         <section>
           <h2 className="text-lg font-semibold text-gray-700 mb-4">채점 정보</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {groupKeys.map(key => {
-              const meta = groupMeta(key);
-              if (!meta) return null;
-              const { records, cls, hw, date, studentNames } = meta;
+            {groupList.map(({ key, records, cls, hw, date, studentNames }) => {
               const isSelected = selectedGroupKey === key;
               return (
-                <button
+                <div
                   key={key}
-                  type="button"
-                  onClick={() => setSelectedGroupKey(isSelected ? null : key)}
-                  className={`block text-left bg-white border rounded-xl p-5 transition-all ${
+                  onClick={() => records.length > 0 && setSelectedGroupKey(isSelected ? null : key)}
+                  className={`bg-white border rounded-xl p-5 transition-all ${records.length > 0 ? 'cursor-pointer' : ''} ${
                     isSelected ? 'border-indigo-400 shadow-sm' : 'border-gray-200 hover:border-indigo-300 hover:shadow-sm'
                   }`}>
                   <div className="flex items-start justify-between mb-1">
                     <h3 className="font-semibold text-gray-800 text-base">
-                      {cls?.class_name ?? '반 미지정'}
+                      {hw ? `${hw.period ? `${hw.period}교시 · ` : ''}${hw.title}` : '숙제 미지정'}
                     </h3>
                     <span className="text-xl opacity-50">🗑</span>
                   </div>
                   <p className="text-xs text-gray-500 mb-2">
-                    {date} · {hw ? `${hw.period ? `${hw.period}교시 · ` : ''}${hw.title}` : '숙제 미지정'}
+                    {cls?.class_name ?? '반 미지정'} · {date}
                   </p>
                   <p className="text-xs text-gray-400 mb-1.5">학생 {studentNames.length}명 · 기록 {records.length}건</p>
                   <div className="flex gap-1 flex-wrap">
@@ -176,10 +234,26 @@ export default function TrashPage() {
                   {cls?.deleted_at && (
                     <p className="text-xs text-amber-600 mt-2">이 반도 휴지통에 있음</p>
                   )}
-                </button>
+                  {/* 숙제 자체가 휴지통에 있으면 숙제 단위 복원/완전 삭제 */}
+                  {hw?.deleted_at && (
+                    <div className="flex justify-end gap-1.5 mt-3" onClick={e => e.stopPropagation()}>
+                      <button
+                        onClick={() => handleRestoreHomework(hw)}
+                        className="px-3 py-1.5 text-xs text-emerald-700 bg-emerald-50 rounded hover:bg-emerald-100 transition-colors font-medium">
+                        복원
+                      </button>
+                      <button
+                        onClick={() => handlePurgeHomework(hw)}
+                        className="px-3 py-1.5 text-xs text-red-600 bg-red-50 rounded hover:bg-red-100 transition-colors font-medium">
+                        완전 삭제
+                      </button>
+                    </div>
+                  )}
+                </div>
               );
             })}
           </div>
+          <p className="mt-2 text-xs text-gray-400">숙제를 복원하면 함께 삭제된 채점 기록도 같이 복원됩니다. 카드를 클릭하면 학생별 데이터를 볼 수 있습니다.</p>
         </section>
       )}
 
@@ -211,6 +285,11 @@ export default function TrashPage() {
                     className="px-3 py-1.5 text-xs text-emerald-700 bg-emerald-50 rounded hover:bg-emerald-100 transition-colors font-medium flex-shrink-0">
                     복원
                   </button>
+                  <button
+                    onClick={() => handlePurgeClass(cls)}
+                    className="px-3 py-1.5 text-xs text-red-600 bg-red-50 rounded hover:bg-red-100 transition-colors font-medium flex-shrink-0">
+                    완전 삭제
+                  </button>
                 </div>
               );
             })}
@@ -240,6 +319,11 @@ export default function TrashPage() {
                   className="px-3 py-1.5 text-xs text-emerald-700 bg-emerald-50 rounded hover:bg-emerald-100 transition-colors font-medium flex-shrink-0">
                   복원
                 </button>
+                <button
+                  onClick={() => handlePurgeStudent(s)}
+                  className="px-3 py-1.5 text-xs text-red-600 bg-red-50 rounded hover:bg-red-100 transition-colors font-medium flex-shrink-0">
+                  완전 삭제
+                </button>
               </div>
             ))}
           </div>
@@ -258,10 +342,10 @@ export default function TrashPage() {
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
               <div className="flex items-baseline gap-3 flex-wrap">
                 <h3 className="font-bold text-gray-800">
-                  {selected.cls?.class_name ?? '반 미지정'} — 삭제된 채점 기록
+                  {selected.hw ? `${selected.hw.period ? `${selected.hw.period}교시 · ` : ''}${selected.hw.title}` : '숙제 미지정'} — 삭제된 채점 기록
                 </h3>
                 <span className="text-xs text-gray-500">
-                  {selected.date} · {selected.hw ? `${selected.hw.period ? `${selected.hw.period}교시 · ` : ''}${selected.hw.title}` : '숙제 미지정'}
+                  {selected.cls?.class_name ?? '반 미지정'} · {selected.date}
                 </span>
                 <span className="text-xs text-gray-400">학생 {selected.studentNames.length}명 · {selected.records.length}건</span>
               </div>
@@ -276,6 +360,11 @@ export default function TrashPage() {
                 이 반은 휴지통에 있습니다. '반 정보'에서 반을 복원하면 함께 삭제된 기록이 한 번에 복원됩니다.
               </div>
             )}
+            {selected.hw?.deleted_at && (
+              <div className="px-6 py-2 bg-amber-50 border-b border-amber-100 text-xs text-amber-700">
+                이 숙제는 휴지통에 있습니다. 숙제 카드의 '복원'을 누르면 함께 삭제된 기록이 한 번에 복원됩니다.
+              </div>
+            )}
             {/* 좌우 스크롤 카드 목록 */}
             <div className="overflow-x-auto px-6 py-5">
               <div className="flex gap-5 w-max">
@@ -287,11 +376,18 @@ export default function TrashPage() {
                         <span className="text-xs text-gray-400">
                           삭제일 {fmtDate(r.deleted_at)}
                         </span>
-                        <button
-                          onClick={() => handleRestoreRecord(r)}
-                          className="px-3 py-1 text-xs text-emerald-700 bg-emerald-50 rounded hover:bg-emerald-100 transition-colors font-medium">
-                          복원
-                        </button>
+                        <div className="flex gap-1.5">
+                          <button
+                            onClick={() => handleRestoreRecord(r)}
+                            className="px-3 py-1 text-xs text-emerald-700 bg-emerald-50 rounded hover:bg-emerald-100 transition-colors font-medium">
+                            복원
+                          </button>
+                          <button
+                            onClick={() => handlePurgeRecord(r)}
+                            className="px-3 py-1 text-xs text-red-600 bg-red-50 rounded hover:bg-red-100 transition-colors font-medium">
+                            완전 삭제
+                          </button>
+                        </div>
                       </div>
                       {student ? (
                         <GradingCard
