@@ -657,7 +657,7 @@ export default function GradingInput() {
   }
 
   async function handleDelete(id) {
-    if (!confirm('이 채점 기록을 삭제하시겠습니까?')) return;
+    if (!confirm('이 채점 기록을 삭제하시겠습니까? (휴지통으로 이동하며 복원할 수 있습니다)')) return;
     await deleteRecord(id);
     await refresh();
   }

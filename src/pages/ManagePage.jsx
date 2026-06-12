@@ -293,8 +293,8 @@ export default function ManagePage() {
         requireType: recordCount > 0,
         lines: recordCount > 0
           ? [
-              `'${item.class_name}' 반을 삭제하면 이 반의 채점 기록 ${recordCount}건이 함께 영구 삭제됩니다.`,
-              '학생 정보는 유지됩니다. 삭제 후 복구할 수 없습니다.',
+              `'${item.class_name}' 반을 삭제하면 이 반의 채점 기록 ${recordCount}건이 함께 휴지통으로 이동합니다.`,
+              '학생 정보는 유지됩니다. 휴지통 탭에서 복원할 수 있습니다.',
             ]
           : [`'${item.class_name}' 반을 삭제하시겠습니까? 이 반에는 채점 기록이 없습니다.`],
       };
@@ -306,9 +306,9 @@ export default function ManagePage() {
       requireType: recordCount > 0,
       lines: recordCount > 0
         ? [
-            `'${item.name}' 학생을 삭제하면 채점 기록 ${recordCount}건이 함께 영구 삭제됩니다.`,
+            `'${item.name}' 학생을 삭제하면 채점 기록 ${recordCount}건이 함께 휴지통으로 이동합니다.`,
             ...(classNames.length > 0 ? [`소속 반: ${classNames.join(', ')}`] : []),
-            '삭제 후 복구할 수 없습니다.',
+            '휴지통 탭에서 복원할 수 있습니다.',
           ]
         : [
             `'${item.name}' 학생을 삭제하시겠습니까? 채점 기록이 없습니다.`,

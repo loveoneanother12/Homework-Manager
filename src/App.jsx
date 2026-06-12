@@ -8,6 +8,7 @@ import UnitManagement from './pages/UnitManagement.jsx';
 import SentenceManagement from './pages/SentenceManagement.jsx';
 import ManagePage from './pages/ManagePage.jsx';
 import StudentHistory from './pages/StudentHistory.jsx';
+import TrashPage from './pages/TrashPage.jsx';
 
 export default function App() {
   return (
@@ -22,6 +23,7 @@ export default function App() {
           <Route path="/class/:className/preview" element={<ClassPreview />} />
           <Route path="/units" element={<UnitManagement />} />
           <Route path="/sentences" element={<SentenceManagement />} />
+          <Route path="/trash" element={<TrashPage />} />
         </Routes>
       </Layout>
     </BrowserRouter>

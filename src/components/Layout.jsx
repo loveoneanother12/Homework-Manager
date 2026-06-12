@@ -5,6 +5,7 @@ const NAV = [
   { to: '/manage',  label: '학생/반 관리' },
   { to: '/units',   label: '단원 관리' },
   { to: '/sentences', label: '문장 풀 관리' },
+  { to: '/trash',   label: '휴지통', muted: true },
 ];
 
 export default function Layout({ children }) {
@@ -18,14 +19,14 @@ export default function Layout({ children }) {
             과제 채점 시스템
           </Link>
           <nav className="flex gap-1">
-            {NAV.map(({ to, label }) => (
+            {NAV.map(({ to, label, muted }) => (
               <Link
                 key={to}
                 to={to}
                 className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${
                   pathname === to
-                    ? 'bg-indigo-50 text-indigo-700'
-                    : 'text-gray-600 hover:bg-gray-100'
+                    ? muted ? 'bg-gray-100 text-gray-600' : 'bg-indigo-50 text-indigo-700'
+                    : muted ? 'text-gray-400 hover:bg-gray-50 hover:text-gray-500' : 'text-gray-600 hover:bg-gray-100'
                 }`}
               >
                 {label}

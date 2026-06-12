@@ -25,13 +25,15 @@ function withKpi(record) {
 // ── 반 ───────────────────────────────────────────────────────────────────────
 
 export async function getClasses() {
-  const { data, error } = await supabase.from('hw_classes').select('*').order('created_at');
+  const { data, error } = await supabase.from('hw_classes').select('*')
+    .is('deleted_at', null).order('created_at');
   if (error) throw error;
   return data ?? [];
 }
 
 export async function getClassByName(className) {
-  const { data } = await supabase.from('hw_classes').select('*').eq('class_name', className).single();
+  const { data } = await supabase.from('hw_classes').select('*')
+    .eq('class_name', className).is('deleted_at', null).single();
   return data ?? null;
 }
 
@@ -46,16 +48,30 @@ export async function updateClass(id, updates) {
   if (error) throw error;
 }
 
+// soft delete — 반과 그 반의 채점 기록을 같은 시각으로 휴지통 이동.
+// 복원 시 deleted_at이 일치하는 기록만 함께 살아난다 (개별 삭제된 기록과 구분).
 export async function deleteClass(id) {
-  // hw_class_students + hw_homework_records: ON DELETE CASCADE로 자동 정리
-  const { error } = await supabase.from('hw_classes').delete().eq('id', id);
+  const ts = new Date().toISOString();
+  const { error: e1 } = await supabase.from('hw_homework_records')
+    .update({ deleted_at: ts }).eq('class_id', id).is('deleted_at', null);
+  if (e1) throw e1;
+  const { error } = await supabase.from('hw_classes').update({ deleted_at: ts }).eq('id', id);
+  if (error) throw error;
+}
+
+export async function restoreClass(cls) {
+  const { error: e1 } = await supabase.from('hw_homework_records')
+    .update({ deleted_at: null }).eq('class_id', cls.id).eq('deleted_at', cls.deleted_at);
+  if (e1) throw e1;
+  const { error } = await supabase.from('hw_classes').update({ deleted_at: null }).eq('id', cls.id);
   if (error) throw error;
 }
 
 // ── 학생 ─────────────────────────────────────────────────────────────────────
 
 export async function getStudents() {
-  const { data, error } = await supabase.from('hw_students').select('*').order('name');
+  const { data, error } = await supabase.from('hw_students').select('*')
+    .is('deleted_at', null).order('name');
   if (error) throw error;
   return data ?? [];
 }
@@ -73,7 +89,7 @@ export async function getStudentsByClassId(classId) {
   if (!members?.length) return [];
   const ids = members.map(m => m.student_id);
   const { data, error: e2 } = await supabase
-    .from('hw_students').select('*').in('id', ids).order('name');
+    .from('hw_students').select('*').in('id', ids).is('deleted_at', null).order('name');
   if (e2) throw e2;
   return data ?? [];
 }
@@ -95,10 +111,22 @@ export async function updateStudent(id, updates) {
   return s;
 }
 
+// soft delete — 학생과 그 학생의 채점 기록을 같은 시각으로 휴지통 이동.
+// 반 소속(hw_class_students)은 그대로 두어 복원 시 원래 반에 다시 나타난다.
 export async function deleteStudent(id) {
-  await supabase.from('hw_homework_records').delete().eq('student_id', id);
-  await supabase.from('hw_class_students').delete().eq('student_id', id);
-  const { error } = await supabase.from('hw_students').delete().eq('id', id);
+  const ts = new Date().toISOString();
+  const { error: e1 } = await supabase.from('hw_homework_records')
+    .update({ deleted_at: ts }).eq('student_id', id).is('deleted_at', null);
+  if (e1) throw e1;
+  const { error } = await supabase.from('hw_students').update({ deleted_at: ts }).eq('id', id);
+  if (error) throw error;
+}
+
+export async function restoreStudent(student) {
+  const { error: e1 } = await supabase.from('hw_homework_records')
+    .update({ deleted_at: null }).eq('student_id', student.id).eq('deleted_at', student.deleted_at);
+  if (e1) throw e1;
+  const { error } = await supabase.from('hw_students').update({ deleted_at: null }).eq('id', student.id);
   if (error) throw error;
 }
 
@@ -117,10 +145,13 @@ export async function removeStudentFromClass(classId, studentId) {
 }
 
 export async function getAllClassMemberships() {
+  // 휴지통에 있는 학생의 소속은 카운트에서 제외 (행 자체는 복원 대비 유지)
   const { data, error } = await supabase
-    .from('hw_class_students').select('class_id, student_id');
+    .from('hw_class_students')
+    .select('class_id, student_id, hw_students!inner(deleted_at)')
+    .is('hw_students.deleted_at', null);
   if (error) throw error;
-  return data ?? [];
+  return (data ?? []).map(({ class_id, student_id }) => ({ class_id, student_id }));
 }
 
 // ── 단원 프리셋 ───────────────────────────────────────────────────────────────
@@ -158,21 +189,24 @@ export async function deleteUnit(id) {
 
 export async function countRecordsByStudent(studentId) {
   const { count, error } = await supabase.from('hw_homework_records')
-    .select('*', { count: 'exact', head: true }).eq('student_id', studentId);
+    .select('*', { count: 'exact', head: true })
+    .eq('student_id', studentId).is('deleted_at', null);
   if (error) throw error;
   return count ?? 0;
 }
 
 export async function countRecordsByClass(classId) {
   const { count, error } = await supabase.from('hw_homework_records')
-    .select('*', { count: 'exact', head: true }).eq('class_id', classId);
+    .select('*', { count: 'exact', head: true })
+    .eq('class_id', classId).is('deleted_at', null);
   if (error) throw error;
   return count ?? 0;
 }
 
 export async function getRecordsByStudent(studentId, sessionDate = null, classId = null) {
   let q = supabase.from('hw_homework_records').select('*')
-    .eq('student_id', studentId).order('created_at', { ascending: false });
+    .eq('student_id', studentId).is('deleted_at', null)
+    .order('created_at', { ascending: false });
   if (sessionDate) q = q.eq('session_date', sessionDate);
   if (classId) q = q.eq('class_id', classId);
   const { data, error } = await q;
@@ -182,7 +216,8 @@ export async function getRecordsByStudent(studentId, sessionDate = null, classId
 
 export async function getLatestRecord(studentId) {
   const { data } = await supabase.from('hw_homework_records').select('*')
-    .eq('student_id', studentId).order('created_at', { ascending: false }).limit(1).single();
+    .eq('student_id', studentId).is('deleted_at', null)
+    .order('created_at', { ascending: false }).limit(1).single();
   return data ? withKpi(data) : null;
 }
 
@@ -193,6 +228,7 @@ export async function getSecondRoundsByDate(studentIds, secondSessionDate, class
     .in('student_id', studentIds)
     .eq('second_session_date', secondSessionDate)
     .not('retry_total', 'is', null)
+    .is('deleted_at', null)
     .order('created_at', { ascending: false });
   if (classId) q = q.eq('class_id', classId);
   const { data, error } = await q;
@@ -204,6 +240,7 @@ export async function getPendingSecondRoundRecords(studentId, beforeDate, classI
   let q = supabase.from('hw_homework_records').select('*')
     .eq('student_id', studentId)
     .is('retry_total', null)
+    .is('deleted_at', null)
     .lt('session_date', beforeDate)
     .order('session_date', { ascending: false });
   if (classId) q = q.eq('class_id', classId);
@@ -215,7 +252,8 @@ export async function getPendingSecondRoundRecords(studentId, beforeDate, classI
 export async function getRecordsByStudentIds(ids, sessionDate = null, classId = null) {
   if (!ids.length) return [];
   let q = supabase.from('hw_homework_records').select('*')
-    .in('student_id', ids).order('created_at', { ascending: false });
+    .in('student_id', ids).is('deleted_at', null)
+    .order('created_at', { ascending: false });
   if (sessionDate) q = q.eq('session_date', sessionDate);
   if (classId) q = q.eq('class_id', classId);
   const { data, error } = await q;
@@ -258,8 +296,51 @@ export async function updateRecordComment2(id, manual_comment_2) {
 }
 
 export async function deleteRecord(id) {
-  const { error } = await supabase.from('hw_homework_records').delete().eq('id', id);
+  const { error } = await supabase.from('hw_homework_records')
+    .update({ deleted_at: new Date().toISOString() }).eq('id', id);
   if (error) throw error;
+}
+
+export async function restoreRecord(id) {
+  const { error } = await supabase.from('hw_homework_records')
+    .update({ deleted_at: null }).eq('id', id);
+  if (error) throw error;
+}
+
+// ── 휴지통 ────────────────────────────────────────────────────────────────────
+
+export async function getDeletedClasses() {
+  const { data, error } = await supabase.from('hw_classes').select('*')
+    .not('deleted_at', 'is', null).order('deleted_at', { ascending: false });
+  if (error) throw error;
+  return data ?? [];
+}
+
+export async function getDeletedStudents() {
+  const { data, error } = await supabase.from('hw_students').select('*')
+    .not('deleted_at', 'is', null).order('deleted_at', { ascending: false });
+  if (error) throw error;
+  return data ?? [];
+}
+
+export async function getDeletedRecords() {
+  const { data, error } = await supabase.from('hw_homework_records').select('*')
+    .not('deleted_at', 'is', null).order('deleted_at', { ascending: false });
+  if (error) throw error;
+  return (data ?? []).map(withKpi);
+}
+
+// 휴지통 표시용 — 삭제된 반/학생 포함 전체 (이름 조회 맵 구성)
+export async function getAllClassesIncludingDeleted() {
+  const { data, error } = await supabase.from('hw_classes').select('*').order('created_at');
+  if (error) throw error;
+  return data ?? [];
+}
+
+export async function getAllStudentsIncludingDeleted() {
+  const { data, error } = await supabase.from('hw_students').select('*').order('name');
+  if (error) throw error;
+  return data ?? [];
 }
 
 // ── 문장 풀 ───────────────────────────────────────────────────────────────────
