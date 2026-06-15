@@ -27,6 +27,7 @@ export default function ClassPreview() {
   const [exporting, setExporting] = useState(false);
   const cardRefs = useRef({});
   const pdfCardRefs = useRef({});
+  const pdfTitleRef = useRef(null);
 
   // 코멘트 디바운스 저장 — 키 입력마다 쓰지 않고 0.8초 멈추면 저장
   const saveTimers = useRef({});   // key('1:id'|'2:id') → timeout id
@@ -151,6 +152,23 @@ export default function ClassPreview() {
     try {
       await flushAll();
       const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      const TITLE_W_MM = CARD_MM_W * 2; // 200mm — 페이지 전체 폭(여백 제외)
+
+      // 타이틀 캡처 (한국어 → html2canvas로 렌더링)
+      const titleEl = pdfTitleRef.current;
+      let titleDataUrl = null;
+      let titleHeightMM = 0;
+      if (titleEl) {
+        const tc = await html2canvas(titleEl, { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false });
+        titleDataUrl = tc.toDataURL('image/png');
+        titleHeightMM = TITLE_W_MM * tc.height / tc.width;
+      }
+      const TITLE_GAP = 2;
+      const cardsStartY = MARGIN + titleHeightMM + TITLE_GAP;
+
+      function addTitle() {
+        if (titleDataUrl) pdf.addImage(titleDataUrl, 'PNG', MARGIN, MARGIN, TITLE_W_MM, titleHeightMM);
+      }
 
       // 모든 카드를 먼저 캡처해 실제 높이(mm) 계산
       const captured = await Promise.all(
@@ -165,7 +183,8 @@ export default function ClassPreview() {
       const valid = captured.filter(Boolean);
 
       // 쌍(좌+우) 단위로 가변 높이 레이아웃
-      let currentY = MARGIN;
+      addTitle();
+      let currentY = cardsStartY;
       for (let i = 0; i < valid.length; i += 2) {
         const left = valid[i];
         const right = valid[i + 1] ?? null;
@@ -173,7 +192,8 @@ export default function ClassPreview() {
 
         if (currentY + rowHeight > A4_H - MARGIN) {
           pdf.addPage();
-          currentY = MARGIN;
+          addTitle();
+          currentY = cardsStartY;
         }
 
         pdf.addImage(left.canvas.toDataURL('image/png'), 'PNG', MARGIN + 0.5, currentY + 0.5, CARD_MM_W - 1, left.heightMM - 1);
@@ -277,8 +297,25 @@ export default function ClassPreview() {
         </div>
       )}
 
-      {/* PDF 캡처 전용 비표시 카드 (editable=false → div 자동 높이, textarea 미사용) */}
+      {/* PDF 캡처 전용 비표시 영역 */}
       <div style={{ position: 'absolute', left: '-9999px', top: 0, pointerEvents: 'none' }}>
+        {/* 페이지 타이틀 — html2canvas 캡처 후 각 페이지 상단에 삽입 */}
+        <div
+          ref={pdfTitleRef}
+          style={{
+            width: CARD_W * 2,
+            padding: '5px 4px 6px',
+            fontFamily: "'Noto Sans KR', 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif",
+            fontSize: 13,
+            fontWeight: 600,
+            color: '#374151',
+            borderBottom: '1.5px solid #d1d5db',
+            background: '#ffffff',
+            boxSizing: 'border-box',
+          }}
+        >
+          {sessionDate}&nbsp;&nbsp;|&nbsp;&nbsp;{decoded}&nbsp;&nbsp;|&nbsp;&nbsp;{homework?.title ?? ''}
+        </div>
         {withRecords.map(entry => (
           <GradingCard
             key={`pdf-${entry.student.id}`}
