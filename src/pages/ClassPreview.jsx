@@ -73,7 +73,7 @@ export default function ClassPreview() {
 
       const [records, secondRecords, absentList] = await Promise.all([
         getRecordsByStudentIds(studentIds, sessionDate, classId, homeworkId),
-        getSecondRoundsByDate(studentIds, sessionDate, classId),
+        getSecondRoundsByDate(studentIds, sessionDate, classId, homeworkId),
         classId ? getAbsentStudentIds(classId, sessionDate) : [],
       ]);
       setAbsentIds(new Set(absentList));

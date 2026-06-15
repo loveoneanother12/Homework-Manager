@@ -363,7 +363,8 @@ export async function getLatestRecord(studentId) {
 }
 
 // 당일 2차 채점이 완료된 이전 회차 레코드 (second_session_date = 오늘)
-export async function getSecondRoundsByDate(studentIds, secondSessionDate, classId = null) {
+// homeworkId 전달 시: second_session_homework_id가 일치하거나 null(구버전 레코드)인 것만 반환
+export async function getSecondRoundsByDate(studentIds, secondSessionDate, classId = null, homeworkId = null) {
   if (!studentIds.length) return [];
   let q = supabase.from('hw_homework_records').select('*')
     .in('student_id', studentIds)
@@ -372,6 +373,7 @@ export async function getSecondRoundsByDate(studentIds, secondSessionDate, class
     .is('deleted_at', null)
     .order('created_at', { ascending: false });
   if (classId) q = q.eq('class_id', classId);
+  if (homeworkId) q = q.or(`second_session_homework_id.eq.${homeworkId},second_session_homework_id.is.null`);
   const { data, error } = await q;
   if (error) throw error;
   return (data ?? []).map(withKpi);

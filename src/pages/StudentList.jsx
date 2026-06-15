@@ -137,6 +137,7 @@ export default function StudentList() {
     await updateRecord(refRecord.id, {
       round: 2,
       second_session_date: sessionDate,
+      second_session_homework_id: homeworkId ?? null,
       retry_total: Number(s.retry_total),
       retry_correct: Number(s.retry_correct),
       retry_wrong: Number(s.retry_wrong),
