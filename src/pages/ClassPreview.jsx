@@ -7,10 +7,10 @@ import { getClassByName, getStudentsByClassId, getRecordsByStudentIds, getSecond
 import { today } from '../lib/dateUtils.js';
 import DateSelector from '../components/DateSelector.jsx';
 
-const A4_W = 210, MARGIN = 5;
+const A4_W = 210, A4_H = 297, MARGIN = 5;
 const CARD_MM_W = (A4_W - MARGIN * 2) / 2; // 100mm = 10cm
-const CARD_MM_H = 50;                        // 50mm = 5cm
-const CARDS_PER_PAGE = 10;                   // 2cols × 5rows
+const CARD_MM_H_MIN = 50;                   // 최소 높이 50mm = 5cm
+const ROW_GAP = 2;                          // 행 간격 2mm
 
 export default function ClassPreview() {
   const { className, homeworkId } = useParams();
@@ -149,21 +149,41 @@ export default function ClassPreview() {
     if (!withRecords.length) return alert('채점 기록이 있는 학생이 없습니다.');
     setExporting(true);
     try {
-      await flushAll(); // 입력 직후 내보내도 미저장 코멘트가 누락되지 않도록
+      await flushAll();
       const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-      for (let i = 0; i < withRecords.length; i++) {
-        const entry = withRecords[i];
-        if (i > 0 && i % CARDS_PER_PAGE === 0) pdf.addPage();
-        const pos = i % CARDS_PER_PAGE;
-        const col = pos % 2;
-        const row = Math.floor(pos / 2);
-        const x = MARGIN + col * CARD_MM_W;
-        const y = MARGIN + row * CARD_MM_H;
-        const el = pdfCardRefs.current[entry.student.id];
-        if (!el) continue;
-        const canvas = await html2canvas(el, { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false });
-        pdf.addImage(canvas.toDataURL('image/png'), 'PNG', x + 0.5, y + 0.5, CARD_MM_W - 1, CARD_MM_H - 1);
+
+      // 모든 카드를 먼저 캡처해 실제 높이(mm) 계산
+      const captured = await Promise.all(
+        withRecords.map(async entry => {
+          const el = pdfCardRefs.current[entry.student.id];
+          if (!el) return null;
+          const canvas = await html2canvas(el, { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false });
+          const heightMM = Math.max(CARD_MM_H_MIN, CARD_MM_W * canvas.height / canvas.width);
+          return { canvas, heightMM };
+        })
+      );
+      const valid = captured.filter(Boolean);
+
+      // 쌍(좌+우) 단위로 가변 높이 레이아웃
+      let currentY = MARGIN;
+      for (let i = 0; i < valid.length; i += 2) {
+        const left = valid[i];
+        const right = valid[i + 1] ?? null;
+        const rowHeight = Math.max(left.heightMM, right?.heightMM ?? 0);
+
+        if (currentY + rowHeight > A4_H - MARGIN) {
+          pdf.addPage();
+          currentY = MARGIN;
+        }
+
+        pdf.addImage(left.canvas.toDataURL('image/png'), 'PNG', MARGIN + 0.5, currentY + 0.5, CARD_MM_W - 1, left.heightMM - 1);
+        if (right) {
+          pdf.addImage(right.canvas.toDataURL('image/png'), 'PNG', MARGIN + CARD_MM_W + 0.5, currentY + 0.5, CARD_MM_W - 1, right.heightMM - 1);
+        }
+
+        currentY += rowHeight + ROW_GAP;
       }
+
       pdf.save(`${decoded}_${homework?.title ?? '숙제'}_평가서_${sessionDate}.pdf`);
     } catch (err) {
       console.error(err);
