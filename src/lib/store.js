@@ -373,7 +373,7 @@ export async function getSecondRoundsByDate(studentIds, secondSessionDate, class
     .is('deleted_at', null)
     .order('created_at', { ascending: false });
   if (classId) q = q.eq('class_id', classId);
-  if (homeworkId) q = q.or(`second_session_homework_id.eq.${homeworkId},second_session_homework_id.is.null`);
+  if (homeworkId) q = q.eq('second_session_homework_id', homeworkId);
   const { data, error } = await q;
   if (error) throw error;
   return (data ?? []).map(withKpi);
