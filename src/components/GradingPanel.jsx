@@ -270,18 +270,23 @@ function RecordCard({ record, units, onDelete, onEdit }) {
 
 // ── Step 1: 1차 채점 폼 ──────────────────────────────────────────────────────
 
-function FirstRoundForm({ units, onSave, onCancel }) {
+function FirstRoundForm({ units, onSave, onCancel, defaultUnit, onUnitChange }) {
   const bySubject = Object.fromEntries(
     SUBJECTS.map(s => [s, units.filter(u => u.subject === s)])
   );
   const noSubject = units.filter(u => !u.subject);
-  const defaultSubject = units.find(u => u.subject)?.subject ?? '';
 
-  const [selectedSubject, setSelectedSubject] = useState(defaultSubject);
+  const initSubject = defaultUnit?.subject || units.find(u => u.subject)?.subject || '';
+  const initSubjectUnits = initSubject ? (bySubject[initSubject] ?? []) : noSubject;
+  const initUnitId = defaultUnit?.unitId && initSubjectUnits.some(u => u.id === defaultUnit.unitId)
+    ? defaultUnit.unitId
+    : initSubjectUnits[0]?.id ?? '';
+
+  const [selectedSubject, setSelectedSubject] = useState(initSubject);
   const subjectUnits = selectedSubject ? (bySubject[selectedSubject] ?? []) : noSubject;
 
   const [f, setF] = useState({
-    unit_id: subjectUnits[0]?.id ?? '',
+    unit_id: initUnitId,
     total_count: '', not_attempted: 0, gave_up: 0, wrong_attempted: 0, process_score: 'good',
   });
   const [errors, setErrors] = useState([]);
@@ -289,7 +294,9 @@ function FirstRoundForm({ units, onSave, onCancel }) {
 
   function handleSubjectSelect(subj) {
     setSelectedSubject(subj);
-    setF(prev => ({ ...prev, unit_id: (bySubject[subj] ?? [])[0]?.id ?? '' }));
+    const newUnitId = (bySubject[subj] ?? [])[0]?.id ?? '';
+    setF(prev => ({ ...prev, unit_id: newUnitId }));
+    onUnitChange?.({ subject: subj, unitId: newUnitId });
   }
 
   const filled = f.total_count !== '' && Number(f.total_count) >= 0 && f.unit_id;
@@ -332,7 +339,10 @@ function FirstRoundForm({ units, onSave, onCancel }) {
         <div>
           <label className="block text-xs font-medium text-gray-600 mb-1">단원</label>
           <select className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            value={f.unit_id} onChange={e => setF(p => ({ ...p, unit_id: e.target.value }))}>
+            value={f.unit_id} onChange={e => {
+              setF(p => ({ ...p, unit_id: e.target.value }));
+              onUnitChange?.({ subject: selectedSubject, unitId: e.target.value });
+            }}>
             {subjectUnits.length === 0
               ? <option value="">— 등록된 단원 없음 —</option>
               : subjectUnits.map(u => <option key={u.id} value={u.id}>{u.unit_name}</option>)}
@@ -474,13 +484,25 @@ function PendingList({ records, units, onSelect }) {
 export default function GradingPanel({
   units, records = [], pendingRecords, pendingLoading,
   onSaveFirst, onSaveSecond, onEdit, onDelete, onClose,
+  defaultUnit, onUnitChange, onReadyForNext,
 }) {
   const [step, setStep] = useState(1);
   const [secondTarget, setSecondTarget] = useState(null);
+  const [showSecondPrompt, setShowSecondPrompt] = useState(false);
+
+  async function handleFirstSaved(f, kpi1) {
+    await onSaveFirst(f, kpi1);
+    if (pendingRecords.length > 0) {
+      setShowSecondPrompt(true);
+    } else {
+      onReadyForNext?.();
+    }
+  }
 
   async function handleSaveSecond(s, kpi2) {
     await onSaveSecond(secondTarget, s, kpi2);
     setSecondTarget(null);
+    onReadyForNext?.();
   }
 
   const step2Badge = pendingRecords.length > 0
@@ -489,6 +511,33 @@ export default function GradingPanel({
 
   return (
     <div className="bg-white border border-indigo-200 rounded-xl shadow-sm overflow-hidden">
+      {/* 2차 채점 유도 팝업 */}
+      {showSecondPrompt && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-sm p-6 space-y-4">
+            <p className="font-semibold text-gray-900 text-sm leading-relaxed">
+              지난 숙제에 대한 재채점 결과 입력 창으로 이동하시겠습니까?
+            </p>
+            <div className="flex gap-2 justify-end">
+              <button
+                onClick={() => { setShowSecondPrompt(false); onReadyForNext?.(); }}
+                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm hover:bg-gray-200 transition-colors">
+                건너뛰기
+              </button>
+              <button
+                onClick={() => {
+                  setShowSecondPrompt(false);
+                  setStep(2);
+                  if (pendingRecords.length > 0) setSecondTarget(pendingRecords[0]);
+                }}
+                className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors">
+                확인
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 패널 헤더 */}
       <div className="flex items-center justify-between px-5 py-3 bg-indigo-50 border-b border-indigo-100">
         <span className="font-semibold text-indigo-900 text-sm">과제 채점</span>
@@ -521,7 +570,7 @@ export default function GradingPanel({
               ))}
             </div>
           ) : (
-            <FirstRoundForm units={units} onSave={onSaveFirst} onCancel={onClose} />
+            <FirstRoundForm units={units} onSave={handleFirstSaved} onCancel={onClose} defaultUnit={defaultUnit} onUnitChange={onUnitChange} />
           )
         )}
         {step === 2 && (

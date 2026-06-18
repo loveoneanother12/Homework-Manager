@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link, useParams, useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import {
   getClassByName, getStudentsByClassId, getRecordsByStudentIds, getUnits,
@@ -32,8 +32,25 @@ export default function StudentList() {
   const [pendingRecords, setPendingRecords] = useState([]);
   const [pendingLoading, setPendingLoading] = useState(false);
 
-  async function refresh() {
-    setLoading(true);
+  // 같은 숙제 내 학생 간 공유 단원
+  const [sharedUnit, setSharedUnit] = useState({ subject: '', unitId: '' });
+
+  // 다음 학생 자동 이동 시 해당 행으로 스크롤
+  const studentRowRefs = useRef({});
+  const autoScrollRef = useRef(false);
+
+  useEffect(() => {
+    if (expandedStudentId && autoScrollRef.current) {
+      autoScrollRef.current = false;
+      studentRowRefs.current[expandedStudentId]?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [expandedStudentId]);
+
+  // 다음 학생 이동 확인 팝업
+  const [nextStudentConfirm, setNextStudentConfirm] = useState(null); // student 객체 or null
+
+  async function refresh(silent = false) {
+    if (!silent) setLoading(true);
     try {
       const [cls, hw] = await Promise.all([getClassByName(decoded), getHomework(homeworkId)]);
       const resolvedClassId = cls?.id ?? null;
@@ -60,11 +77,11 @@ export default function StudentList() {
         };
       }));
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }
 
-  useEffect(() => { refresh(); }, [decoded, homeworkId, sessionDate, locationKey]);
+  useEffect(() => { refresh(false); }, [decoded, homeworkId, sessionDate, locationKey]);
 
   async function toggleAbsence(studentId) {
     const next = !absentIds.has(studentId);
@@ -121,7 +138,7 @@ export default function StudentList() {
       manual_comment_2: null,
       clinic_flag: shouldFlagClinic({ kpi1, kpi2: null }),
     });
-    await refresh();
+    await refresh(true);
   }
 
   async function handleSaveSecond(refRecord, s, kpi2) {
@@ -147,7 +164,7 @@ export default function StudentList() {
       manual_comment_2: null,
       clinic_flag: shouldFlagClinic({ kpi1, kpi2 }),
     });
-    await refresh();
+    await refresh(true);
     if (expandedStudentId) await refreshPending(expandedStudentId);
   }
 
@@ -183,13 +200,38 @@ export default function StudentList() {
       });
     }
     await updateRecord(id, updateData);
-    await refresh();
+    await refresh(true);
   }
 
   async function handleDelete(id) {
     if (!confirm('이 채점 기록을 삭제하시겠습니까? (휴지통으로 이동하며 복원할 수 있습니다)')) return;
     await deleteRecord(id);
-    await refresh();
+    await refresh(true);
+  }
+
+  // ── 다음 학생 이동 로직 ──────────────────────────────────────────────────────
+
+  function handleReadyForNext() {
+    const currentIndex = entries.findIndex(e => e.student.id === expandedStudentId);
+    if (currentIndex === -1) { setExpandedStudentId(null); return; }
+    const nextEntry = entries.slice(currentIndex + 1).find(e => !absentIds.has(e.student.id));
+    if (!nextEntry) {
+      setExpandedStudentId(null);
+      return;
+    }
+    setNextStudentConfirm(nextEntry.student);
+  }
+
+  async function handleNextStudentConfirmed() {
+    const nextId = nextStudentConfirm.id;
+    setNextStudentConfirm(null);
+    autoScrollRef.current = true;
+    await toggleGrading(nextId);
+  }
+
+  function handleNextStudentSkipped() {
+    setExpandedStudentId(null);
+    setNextStudentConfirm(null);
   }
 
   const previewLink = `/class/${className}/hw/${homeworkId}/preview?date=${sessionDate}`;
@@ -233,7 +275,7 @@ export default function StudentList() {
             const isAbsent = absentIds.has(student.id);
             const isExpanded = expandedStudentId === student.id;
             return (
-              <div key={student.id}>
+              <div key={student.id} ref={el => { if (el) studentRowRefs.current[student.id] = el; }}>
                 <div className="flex items-center px-5 py-4 gap-4">
                   <div className={`flex-1 min-w-0 ${isAbsent ? 'opacity-50' : ''}`}>
                     <div className="flex items-center gap-2 flex-wrap">
@@ -292,12 +334,38 @@ export default function StudentList() {
                       onEdit={handleEdit}
                       onDelete={handleDelete}
                       onClose={() => setExpandedStudentId(null)}
+                      defaultUnit={sharedUnit}
+                      onUnitChange={setSharedUnit}
+                      onReadyForNext={handleReadyForNext}
                     />
                   </div>
                 )}
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* 다음 학생 이동 확인 팝업 */}
+      {nextStudentConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-sm p-6 space-y-4">
+            <p className="font-semibold text-gray-900 text-sm leading-relaxed">
+              다음 <span className="text-indigo-700">{nextStudentConfirm.name}</span> 학생으로 이동하시겠습니까?
+            </p>
+            <div className="flex gap-2 justify-end">
+              <button
+                onClick={handleNextStudentSkipped}
+                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm hover:bg-gray-200 transition-colors">
+                건너뛰기
+              </button>
+              <button
+                onClick={handleNextStudentConfirmed}
+                className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors">
+                확인
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
