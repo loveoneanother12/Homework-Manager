@@ -7,7 +7,7 @@
 
 ## 0. 한 줄 요약
 
-학원 채점조교가 **숫자만 입력**하면, 단원별 가중치에 따라 KPI를 자동 계산하고, **알고리즘 기반(비-AI)** 으로 강사용 코멘트를 조합 생성하여, 학생별 평가서 카드를 만들고, 반 단위로 **A4 한 페이지당 10명**씩 PDF로 출력하는 웹앱.
+학원 채점조교가 **숫자만 입력**하면, 단원별 가중치에 따라 KPI를 자동 계산하고, **알고리즘 기반(비-AI)** 으로 강사용 코멘트를 조합 생성하여, 학생별 평가서 카드를 만들고, 반+날짜+숙제 단위로 **가변 높이 카드를 A4 2열 배치로** PDF 출력하는 웹앱.
 
 ---
 
@@ -235,15 +235,18 @@ gave_up_rate, not_attempted_rate, wrong_rate 중 최댓값이 15% 미만이면 `
 ### 4.6 2차 채점의 크로스 레코드 표시
 - 2차 채점은 **이번 회차와 다른 날짜**에 수행된다(예: 이번 회차 1차 채점 → 다음 회차에 2차 채점 수행).
 - `hw_homework_records.second_session_date` = 2차 채점을 실제로 수행한 날짜.
+- `hw_homework_records.second_session_homework_id` = 2차 채점 당시 열려있던 숙제 ID (어느 숙제 화면에서 2차 채점했는지 구분).
 - 이번 회차 평가서 카드에는 **이번 회차 1차 코멘트(상단) + 이번 회차에 2차 채점된 전 회차 코멘트(하단)**를 함께 표시.
-- 조회 방법: `second_session_date = 현재 조회 날짜`인 레코드를 조회 → 해당 전 회차의 2차 데이터를 현재 카드에 표시.
+- 조회 방법: `second_session_date = 현재 조회 날짜` AND `second_session_homework_id = 현재 숙제 ID`인 레코드 조회 → 해당 전 회차의 2차 데이터를 현재 카드에 표시.
 
 ---
 
 ## 5. 평가서 카드 & PDF 출력
 
 ### 5.1 카드 사양 (PDF 출력 기준)
-- 카드 1장 크기: **가로 10cm × 세로 5cm**.
+- 카드 가로: **10cm (100mm)**
+- 카드 세로: **최소 5cm (50mm), 코멘트 양에 따라 자동 확장** (고정 높이 아님)
+- 구현 픽셀 기준: `CARD_W = 378px`, `CARD_H = 302px` (최소 기준, 세로는 가변)
 - 카드에 담길 내용:
   - 학생 이름, 학년, 단원명, 채점 날짜
   - 이행률 · 정답률 (수치 + 막대 그래프)
@@ -257,14 +260,17 @@ gave_up_rate, not_attempted_rate, wrong_rate 중 최댓값이 15% 미만이면 `
 
 ### 5.2 PDF 출력
 - 출력 결과물은 **PDF 파일**로 생성(브라우저 인쇄 대화상자가 아닌 파일 다운로드).
-- **A4 1페이지당 10명** 배치 (5행 × 2열, 10cm×5cm 카드 10장이 A4에 맞음).
-- 반 단위로 'PDF 다운로드' 버튼 → 해당 반 전원 카드를 PDF로 일괄 생성.
+- **A4 2열 배치** (가로 10cm × 2 = 20cm, 여백 포함). 한 페이지에 들어가는 행 수는 카드 높이에 따라 가변.
+- 각 페이지 상단에 **날짜 · 반 · 숙제명 타이틀** 삽입 (html2canvas로 렌더링 후 이미지로 삽입).
+- 행 단위 가변 높이: 좌우 카드 중 높은 쪽을 행 높이로 사용, 행 간격 2mm.
+- 결석 처리된 학생은 PDF에서 제외.
 - **구현 방식**:
   - 웹 미리보기에서는 `editable=true` 카드(textarea) 렌더링 — 코멘트 직접 수정 가능.
-  - PDF 캡처 전용으로 화면 밖(`left: -9999px`)에 `editable=false` 카드(div, 자동 높이)를 숨겨서 렌더링.
-  - `html2canvas`로 `editable=false` 카드 캡처 → `jsPDF`로 A4 10분할 좌표에 배치 합성.
+  - PDF 캡처 전용으로 화면 밖(`left: -9999px`)에 `editable=false, pdfMode=true` 카드를 숨겨서 렌더링.
+  - `html2canvas`로 `editable=false` 카드 캡처 → `jsPDF`로 A4 2열 가변 높이 배치로 합성.
   - (브라우저 기본 `@media print`는 환경별 편차가 커서 사용하지 않음.)
-- 카드 레이아웃은 **고정 픽셀값**으로 확정하여 환경 간 편차를 제거.
+- 카드 레이아웃은 **고정 픽셀값(인라인 스타일)**으로 확정하여 환경 간 편차를 제거.
+- 파일명: `{반이름}_{숙제명}_평가서_{날짜}.pdf`
 
 ---
 
@@ -285,12 +291,14 @@ gave_up_rate, not_attempted_rate, wrong_rate 중 최댓값이 15% 미만이면 `
 hw_classes               (반 정보)
 - id (uuid, pk)
 - class_name             // 반 이름 (unique)
+- deleted_at             // soft delete 타임스탬프 (nullable)
 - created_at
 
 hw_students              (학생 정보 — 통합 시 외부 students로 대체)
 - id (uuid, pk)
 - name
 - grade                  // 학년: '초1'~'초6', '중1'~'중3', '고1'~'고3', 'N수', nullable
+- deleted_at             // soft delete 타임스탬프 (nullable)
 - created_at
 
 hw_class_students        (반-학생 N:M 조인)
@@ -298,6 +306,28 @@ hw_class_students        (반-학생 N:M 조인)
 - student_id (uuid, fk → hw_students, ON DELETE CASCADE)
 - PRIMARY KEY (class_id, student_id)
 // 한 학생이 여러 반에 소속 가능, 반별로 채점 기록 분리
+// soft delete 시 행을 삭제하지 않고 유지 → 복원 시 원래 반 소속 그대로 복원
+
+hw_homeworks             (반+날짜별 숙제 단위)
+- id (uuid, pk)
+- class_id (uuid, fk → hw_classes)
+- session_date (date)    // 수업 날짜
+- title (text)           // 숙제명 (예: '쎈 12~15p')
+- period (int, nullable) // 교시: 1 | 2
+- deleted_at             // soft delete 타임스탬프 (nullable)
+- created_at
+
+hw_class_sessions        (수업일 상태 — 숙제 없음 여부)
+- class_id (uuid, fk → hw_classes)
+- session_date (date)
+- no_homework (boolean, default false)
+- PRIMARY KEY (class_id, session_date)
+
+hw_absences              (학생 결석 기록)
+- class_id (uuid, fk → hw_classes)
+- student_id (uuid, fk → hw_students)
+- session_date (date)
+- PRIMARY KEY (class_id, student_id, session_date)
 
 hw_unit_presets          (단원 가중치 설정)
 - id (uuid, pk)
@@ -313,11 +343,13 @@ hw_unit_presets          (단원 가중치 설정)
 hw_homework_records      (채점 입력 + KPI + 코멘트)
 - id (uuid, pk)
 - student_id (uuid, fk → hw_students)
-- class_id (uuid, fk → hw_classes)   // 다중 반 수강 시 반별 기록 분리
+- class_id (uuid, fk → hw_classes)
+- homework_id (uuid, fk → hw_homeworks, nullable)  // 숙제 단위 연결 (구버전 레코드는 null)
 - unit_id (uuid, fk → hw_unit_presets)
-- round                  // 1 | 2
 - session_date           // 1차 채점 수업 날짜 (date)
 - second_session_date    // 2차 채점 수업 날짜 (date, nullable)
+- second_session_homework_id (uuid, fk → hw_homeworks, nullable)
+                         // 2차 채점 시 열려있던 숙제 ID — 숙제별 2차 채점 분리에 사용
 - total_count
 - not_attempted
 - gave_up
@@ -333,6 +365,7 @@ hw_homework_records      (채점 입력 + KPI + 코멘트)
 - generated_comment_2    // 2차 알고리즘 생성 코멘트 (nullable)
 - manual_comment_2       // 2차 수동 편집 코멘트 (nullable)
 - clinic_flag            // boolean
+- deleted_at             // soft delete 타임스탬프 (nullable)
 - created_at
 
 hw_sentence_blocks       (코멘트 문장 풀)
@@ -355,8 +388,16 @@ hw_sentence_blocks       (코멘트 문장 풀)
 | '5' | `repeat_error_only`, `unresolved_only`, `both` |
 | '6' | `note_good`, `note_needs_work`, `note_poor` |
 
-### 6.3 통합 시나리오
-통합 시점에 `hw_homework_records.student_id`를 대형 앱의 `students.id`에 외래키로 연결하고, `hw_students`와 `hw_classes`, `hw_class_students`는 대형 앱의 해당 테이블로 대체. 나머지 테이블(`hw_unit_presets`, `hw_homework_records`, `hw_sentence_blocks`)은 그대로 이식.
+### 6.3 Soft Delete 규칙
+- 반/학생/숙제/채점기록 모두 `deleted_at` 타임스탬프로 soft delete.
+- **반 삭제**: `hw_classes.deleted_at` + 해당 반의 `hw_homework_records.deleted_at`을 **같은 타임스탬프**로 설정.
+- **학생 삭제**: `hw_students.deleted_at` + 해당 학생의 `hw_homework_records.deleted_at`을 **같은 타임스탬프**로 설정. `hw_class_students` 행은 유지(복원 시 반 소속 복원).
+- **숙제 삭제**: `hw_homeworks.deleted_at` + 해당 숙제의 `hw_homework_records.deleted_at`을 **같은 타임스탬프**로 설정.
+- **복원 시**: 같은 `deleted_at` 타임스탬프로 묶인 기록들을 일괄 복원 → 개별 삭제된 기록과 구분.
+- **영구삭제(purge)**: 휴지통에서 완전 제거, 복구 불가.
+
+### 6.4 통합 시나리오
+통합 시점에 `hw_homework_records.student_id`를 대형 앱의 `students.id`에 외래키로 연결하고, `hw_students`와 `hw_classes`, `hw_class_students`는 대형 앱의 해당 테이블로 대체. 나머지 테이블(`hw_unit_presets`, `hw_homework_records`, `hw_sentence_blocks`, `hw_homeworks`, `hw_class_sessions`, `hw_absences`)은 그대로 이식.
 
 ---
 
@@ -381,7 +422,7 @@ hw_sentence_blocks       (코멘트 문장 풀)
 
 - **Frontend**: Vite + React + Tailwind CSS v3
 - **Routing**: React Router v6 (HashRouter — GitHub Pages SPA 대응)
-- **Backend / DB**: Supabase (별도 프로젝트로 시작)
+- **Backend / DB**: Supabase (연결 완료, `src/lib/supabase.js`에서 클라이언트 초기화)
 - **PDF**: html2canvas + jsPDF
 - **배포**: GitHub Pages
 - **AI API**: 사용하지 않음
@@ -390,23 +431,30 @@ hw_sentence_blocks       (코멘트 문장 풀)
 
 ## 9. 화면 구성 (페이지 & 라우트)
 
-앱은 4개 탭으로 구성된다.
+앱은 5개 탭으로 구성된다.
 
 ### 탭 1 — 채점 (`/`)
 반 목록 화면. 수업 날짜 필터, 반 검색, 요일 필터 제공.
-- 반 클릭 → 학생 목록 (`/class/:className`)
-  - 날짜별 채점 완료 여부 표시
-  - 학생 클릭 → 채점 입력 (`/student/:studentId/grade?date=YYYY-MM-DD&class=반이름`)
-    - Step 1 (1차 채점): 단원 선택 + 숫자 입력 + process_score 선택 + KPI 미리보기 + 저장
-    - Step 2 (2차 채점): 이전 회차 대기 레코드 목록 → 선택 → 숫자 입력 + note_quality 선택 + 저장
-  - 반 평가서 미리보기/PDF 버튼 → 반 평가서 (`/class/:className/preview?date=YYYY-MM-DD`)
-    - 채점 완료 학생 카드 목록 (editable, 코멘트 직접 수정 가능)
-    - PDF 다운로드 버튼 (화면 밖 editable=false 카드로 캡처)
+- 반 클릭 → **숙제 목록** (`/class/:className?date=YYYY-MM-DD`)
+  - 날짜별 숙제 카드 목록 (숙제명, 교시, 채점 완료 인원)
+  - 숙제 추가 / 편집 / 삭제 (삭제 시 채점기록과 함께 soft delete)
+  - **숙제 없음** 토글 (날짜 전체에 숙제가 없는 날 표시)
+  - 숙제 카드 클릭 → **학생 목록** (`/class/:className/hw/:homeworkId?date=YYYY-MM-DD`)
+    - 학생별 채점 상태 표시
+    - **결석** 표시/해제 (결석 학생은 PDF에서 제외)
+    - 학생 클릭 → 인라인 채점 패널 확장
+      - Step 1 (1차 채점): 단원 선택 + 숫자 입력 + process_score 선택 + KPI 미리보기 + 저장
+      - Step 2 (2차 채점): 이전 회차 대기 레코드 목록 → 선택 → 숫자 입력 + note_quality 선택 + 저장
+    - 반 평가서 미리보기/PDF 버튼 → **평가서** (`/class/:className/hw/:homeworkId/preview?date=YYYY-MM-DD`)
+      - 채점 완료 학생 카드 목록 (editable, 코멘트 직접 수정 가능, 0.8초 디바운스 자동 저장)
+      - PDF 다운로드 버튼 (화면 밖 editable=false 카드로 캡처)
+      - 결석·미채점 학생 경고 표시
 
 ### 탭 2 — 학생/반 관리 (`/manage`)
 - **반 관리 섹션**: 반 추가 / 편집 / 삭제. 반 행 클릭 시 아코디언 확장 → 소속 학생 칩 + 제거 버튼 + 학생 검색·추가 UI.
 - **학생 관리 섹션**: 학생 추가(이름 + 학년) / 삭제. 학생 이름 클릭 → 학생 이력 새 탭 오픈.
 - N:M 구조: 한 학생이 여러 반에 소속 가능. 반별로 채점 기록 분리.
+- 삭제는 soft delete → 휴지통으로 이동.
 
 ### 학생 이력 (`/student/:studentId/history`)
 - 해당 학생의 전체 평가서 카드를 반별·날짜 역순으로 열람.
@@ -423,6 +471,14 @@ hw_sentence_blocks       (코멘트 문장 풀)
 - 문장 편집(미리보기 포함) / 활성·비활성 / 삭제 / 추가.
 - 기본값으로 초기화 버튼 (DB 전체 재설정).
 
+### 탭 5 — 휴지통 (`/trash`)
+- **반 휴지통**: 삭제된 반 목록, 복원(이름 충돌 시 새 이름 입력) / 영구삭제.
+- **학생 휴지통**: 삭제된 학생 목록, 복원(이름 충돌 시 새 이름 입력) / 영구삭제.
+- **숙제 휴지통**: 삭제된 숙제 카드 목록(반+날짜+숙제명 기준 그룹), 복원 / 영구삭제.
+  - 숙제와 함께 삭제된 채점기록도 함께 복원/영구삭제.
+  - 복원 시 이미 살아있는 기록과 충돌하면 해당 기록만 스킵 후 나머지 복원.
+- **채점기록 휴지통**: 개별 삭제된 채점기록 (숙제 단위 그룹으로 표시).
+
 ---
 
 ## 10. 리스크 및 헷징 플랜
@@ -431,7 +487,7 @@ hw_sentence_blocks       (코멘트 문장 풀)
 
 | ID | 리스크 | 중요도 | 헷징 |
 |----|--------|--------|------|
-| R1 | PDF 출력 품질 환경별 편차 | 🔴 | html2canvas+jsPDF로 이미지 캡처 후 합성, editable=false 카드 별도 캡처, 고정 픽셀 레이아웃, 초기 실제 출력 테스트 |
+| R1 | PDF 출력 품질 환경별 편차 | 🔴 | html2canvas+jsPDF로 이미지 캡처 후 합성, editable=false pdfMode=true 카드 별도 캡처, 고정 픽셀 인라인 스타일, 초기 실제 출력 테스트 |
 | R2 | 문장 조합 경우의 수 누락 | 🔴 | 파트별 독립 분기 + fallback 기본 문장, 파일럿 테스트(실데이터 10~20건), 카드 내 수동 편집 필드 |
 | R3 | 조교 입력 오류(논리 불가 값) | 🔴 | 실시간 유효성 검사 + 저장 전 KPI 미리보기 + 서버단 재검증 |
 | R4 | 단원 가중치 설계의 주관성 | 🟡 | 선택지 방식 UI, 기본 프리셋 5종, 변경 이력 기록 |
@@ -445,17 +501,25 @@ hw_sentence_blocks       (코멘트 문장 풀)
 ## 11. 구현 완료 범위 및 향후 과제
 
 ### 11.1 구현 완료
+- **Supabase 연결** (`src/lib/supabase.js`, `src/lib/store.js` 전면 async)
 - 단원 선택 + 1차/2차 숫자 입력 + 유효성 검사
 - KPI 자동 계산 (정답률 분모: 시도 문항 수)
 - 6파트 알고리즘 코멘트 생성 (1차 3파트 + 2차 3파트, fallback 포함)
-- 크로스 레코드 2차 채점 표시 (second_session_date 기반)
-- 평가서 카드 렌더링 + 코멘트 수동 편집
-- A4 10분할 PDF 출력 (editable=false 전용 캡처 카드)
-- 학생/반 N:M 구조 (hw_class_students)
-- 반별 채점 기록 분리 (class_id)
-- 학생 학년 정보 (grade)
+- **숙제(hw_homeworks) 단위 채점 흐름** — 반+날짜+숙제 3단계 드릴다운
+- **교시(1/2교시) 구분** (숙제 카드에 교시 뱃지)
+- **결석/숙제없음 처리** (`hw_absences`, `hw_class_sessions`)
+- **Soft delete 전면 도입** — 반, 학생, 숙제, 채점기록 모두 `deleted_at`
+- **휴지통 + 복원 + 영구삭제** (`/trash`)
+- 크로스 레코드 2차 채점 표시 (`second_session_date` + `second_session_homework_id` 기반)
+- 평가서 카드 렌더링 + 코멘트 수동 편집 (0.8초 디바운스 자동 저장)
+- **PDF 카드 세로 높이 가변화** (코멘트 양에 따라 자동 확장, 최소 50mm)
+- **PDF 각 페이지 상단 타이틀** (날짜·반·숙제명)
+- A4 2열 가변 높이 배치 PDF 출력
+- 학생/반 N:M 구조 (`hw_class_students`)
+- 반별 채점 기록 분리 (`class_id`)
+- 학생 학년 정보 (`grade`)
 - 학생 이력 페이지
-- 채점/학생반관리/단원관리/문장풀관리 4탭 구성
+- 채점/학생반관리/단원관리/문장풀관리/휴지통 **5탭** 구성
 
 ### 11.2 향후 과제
 - 누적 데이터 기반 단원별 장단점 분석 대시보드
@@ -470,9 +534,11 @@ hw_sentence_blocks       (코멘트 문장 풀)
 1. `student_id`는 절대 하드코딩하지 말 것 — 외부 주입 구조.
 2. 모든 테이블/주요 식별자에 `hw_` 접두사.
 3. AI API 호출 코드 작성 금지 — 코멘트는 순수 알고리즘 조합.
-4. PDF는 파일 다운로드 방식, html2canvas+jsPDF, editable=false 카드로 캡처.
+4. PDF는 파일 다운로드 방식, html2canvas+jsPDF, `editable=false pdfMode=true` 카드로 캡처.
 5. 모든 KPI 입력에 3중 유효성 검사(실시간/저장전/서버).
 6. 항상 출력 파트(1, 2, 4)는 fallback 보장 — 빈 코멘트 금지.
 7. 입력 폼 모바일 반응형.
 8. URL 파라미터 변경 시 기존 파라미터 보존 (`setSearchParams(prev => ...)` 패턴).
 9. 반별 기록 분리를 위해 채점 저장 시 `class_id` 반드시 포함.
+10. 삭제는 soft delete 우선 — 영구삭제는 휴지통에서만 허용.
+11. 숙제 단위 저장 시 `homework_id` 반드시 포함. 2차 채점 저장 시 `second_session_homework_id` 반드시 포함.
