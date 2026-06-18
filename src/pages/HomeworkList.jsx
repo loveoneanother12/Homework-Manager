@@ -4,6 +4,7 @@ import {
   getClassByName, getHomeworks, addHomework, updateHomework, deleteHomework,
   countLiveRecordsByHomework, getRecordsByClassDate,
   getNoHomework, setNoHomework,
+  getHomeworkPresets, applyHomeworkPresets,
 } from '../lib/store.js';
 import { today } from '../lib/dateUtils.js';
 import DateSelector from '../components/DateSelector.jsx';
@@ -101,7 +102,17 @@ export default function HomeworkList() {
         getRecordsByClassDate(resolvedClassId, sessionDate),
         getNoHomework(resolvedClassId, sessionDate),
       ]);
-      setHomeworks(hws);
+
+      // 숙제가 없고 숙제 없음 플래그도 false일 때 프리셋으로 자동 생성
+      let finalHws = hws;
+      if (hws.length === 0 && !noHw) {
+        const presets = await getHomeworkPresets(resolvedClassId);
+        if (presets.length > 0) {
+          finalHws = await applyHomeworkPresets(resolvedClassId, sessionDate);
+        }
+      }
+
+      setHomeworks(finalHws);
       const byHw = {};
       for (const r of records) {
         if (!r.homework_id) continue;

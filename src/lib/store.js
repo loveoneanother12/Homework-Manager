@@ -294,6 +294,64 @@ export async function getRecordsByClassDate(classId, sessionDate) {
   return data ?? [];
 }
 
+// ── 숙제 프리셋 (반별 고정 숙제 카드 자동 생성용) ────────────────────────────
+
+export async function getHomeworkPresets(classId) {
+  const { data, error } = await supabase.from('hw_homework_presets').select('*')
+    .eq('class_id', classId).order('sort_order').order('created_at');
+  if (error) throw error;
+  return data ?? [];
+}
+
+export async function addHomeworkPreset(classId, { title, period, sort_order = 0 }) {
+  const { data, error } = await supabase.from('hw_homework_presets')
+    .insert({ class_id: classId, title, period, sort_order }).select().single();
+  if (error) throw error;
+  return data;
+}
+
+export async function updateHomeworkPreset(id, updates) {
+  const { error } = await supabase.from('hw_homework_presets').update(updates).eq('id', id);
+  if (error) throw error;
+}
+
+export async function deleteHomeworkPreset(id) {
+  const { error } = await supabase.from('hw_homework_presets').delete().eq('id', id);
+  if (error) throw error;
+}
+
+// React StrictMode 이중 실행 등의 race condition 방지 — 같은 반+날짜 조합은 동시에 1회만 실행
+const _applyingKeys = new Set();
+
+// HomeworkList 자동 적용 — 해당 날짜에 숙제가 없을 때만 프리셋으로 일괄 생성.
+// 빈 제목 프리셋은 건너뛴다.
+export async function applyHomeworkPresets(classId, sessionDate) {
+  const key = `${classId}:${sessionDate}`;
+  if (_applyingKeys.has(key)) {
+    await new Promise(r => setTimeout(r, 300));
+    return getHomeworks(classId, sessionDate);
+  }
+  _applyingKeys.add(key);
+  try {
+    const [presets, existing] = await Promise.all([
+      getHomeworkPresets(classId),
+      getHomeworks(classId, sessionDate),
+    ]);
+    if (!presets.length) return existing;
+    const existingPeriods = new Set(existing.map(h => h.period));
+    const toInsert = presets.filter(p => p.title.trim() && !existingPeriods.has(p.period));
+    if (!toInsert.length) return existing;
+    const rows = toInsert.map(p => ({
+      class_id: classId, session_date: sessionDate, title: p.title, period: p.period,
+    }));
+    const { error } = await supabase.from('hw_homeworks').insert(rows);
+    if (error) throw error;
+    return getHomeworks(classId, sessionDate);
+  } finally {
+    _applyingKeys.delete(key);
+  }
+}
+
 // ── 단원 프리셋 ───────────────────────────────────────────────────────────────
 
 export async function getUnits() {

@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import {
   getClasses, addClass, updateClass, deleteClass,
   getStudents, getStudentsByClassId, addStudent, deleteStudent,
   addStudentToClass, removeStudentFromClass, getAllClassMemberships,
   countRecordsByStudent, countRecordsByClass,
+  getHomeworkPresets, addHomeworkPreset, updateHomeworkPreset, deleteHomeworkPreset,
 } from '../lib/store.js';
 import DeleteConfirmModal from '../components/DeleteConfirmModal.jsx';
 
@@ -30,6 +31,56 @@ function DayToggle({ value, onChange }) {
           {d}
         </button>
       ))}
+    </div>
+  );
+}
+
+function PresetRow({ preset, onUpdate, onDelete }) {
+  const [title, setTitle] = useState(preset.title);
+  const titleRef = useRef(preset.title);
+
+  function handleTitleBlur() {
+    const trimmed = title.trim();
+    if (trimmed === titleRef.current) return;
+    titleRef.current = trimmed;
+    onUpdate(preset.id, { title: trimmed });
+  }
+
+  function handlePeriodToggle(p) {
+    const next = preset.period === p ? null : p;
+    onUpdate(preset.id, { period: next });
+  }
+
+  return (
+    <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-lg px-3 py-2">
+      <input
+        className="flex-1 text-sm border-none outline-none focus:ring-0 bg-transparent text-gray-800 placeholder-gray-300"
+        value={title}
+        onChange={e => setTitle(e.target.value)}
+        onBlur={handleTitleBlur}
+        placeholder="숙제명 입력…"
+      />
+      <div className="flex gap-1 flex-shrink-0">
+        {[1, 2].map(p => (
+          <button
+            key={p}
+            type="button"
+            onClick={() => handlePeriodToggle(p)}
+            className={`px-2 py-0.5 text-xs rounded font-medium transition-colors ${
+              preset.period === p
+                ? 'bg-indigo-600 text-white'
+                : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+            }`}>
+            {p}교시
+          </button>
+        ))}
+      </div>
+      <button
+        type="button"
+        onClick={() => onDelete(preset.id)}
+        className="text-gray-300 hover:text-red-500 transition-colors text-xs w-5 h-5 flex items-center justify-center flex-shrink-0">
+        ✕
+      </button>
     </div>
   );
 }
@@ -159,6 +210,10 @@ export default function ManagePage() {
   // 삭제 확인 모달 — { type: 'class'|'student', item, recordCount }
   const [deleteTarget, setDeleteTarget] = useState(null);
 
+  // 숙제 프리셋 — classId → preset[]
+  const [presetsByClass, setPresetsByClass] = useState({});
+  const [presetsLoading, setPresetsLoading] = useState(false);
+
   async function loadData() {
     const [cls, students, mems] = await Promise.all([
       getClasses(),
@@ -178,9 +233,15 @@ export default function ManagePage() {
   useEffect(() => {
     if (!expandedClassId) { setClassStudents([]); setMemberSearch(''); return; }
     setClassStudentsLoading(true);
-    getStudentsByClassId(expandedClassId).then(s => {
-      setClassStudents(s);
+    setPresetsLoading(true);
+    Promise.all([
+      getStudentsByClassId(expandedClassId),
+      getHomeworkPresets(expandedClassId),
+    ]).then(([students, presets]) => {
+      setClassStudents(students);
       setClassStudentsLoading(false);
+      setPresetsByClass(prev => ({ ...prev, [expandedClassId]: presets }));
+      setPresetsLoading(false);
     });
     setMemberSearch('');
   }, [expandedClassId]);
@@ -254,6 +315,35 @@ export default function ManagePage() {
     setMemberships(prev =>
       prev.filter(m => !(m.class_id === expandedClassId && m.student_id === student.id))
     );
+  }
+
+  // ── 숙제 프리셋 핸들러 ───────────────────────────────────────────────────
+
+  async function handleAddPreset(classId) {
+    const presets = presetsByClass[classId] ?? [];
+    const nextPeriod = presets.length === 0 ? 1 : presets.length === 1 ? (presets[0].period === 1 ? 2 : 1) : null;
+    const preset = await addHomeworkPreset(classId, {
+      title: '',
+      period: nextPeriod,
+      sort_order: presets.length,
+    });
+    setPresetsByClass(prev => ({ ...prev, [classId]: [...(prev[classId] ?? []), preset] }));
+  }
+
+  async function handleUpdatePreset(classId, id, updates) {
+    await updateHomeworkPreset(id, updates);
+    setPresetsByClass(prev => ({
+      ...prev,
+      [classId]: (prev[classId] ?? []).map(p => p.id === id ? { ...p, ...updates } : p),
+    }));
+  }
+
+  async function handleDeletePreset(classId, id) {
+    await deleteHomeworkPreset(id);
+    setPresetsByClass(prev => ({
+      ...prev,
+      [classId]: (prev[classId] ?? []).filter(p => p.id !== id),
+    }));
   }
 
   // ── 학생 풀 핸들러 ────────────────────────────────────────────────────────
@@ -407,7 +497,7 @@ export default function ManagePage() {
                     </div>
                   </div>
 
-                  {/* 확장 영역: 구성원 + 학생 추가 검색 */}
+                  {/* 확장 영역: 구성원 + 학생 추가 검색 + 숙제 프리셋 */}
                   {isExpanded && (
                     <div className="border-t border-indigo-100 bg-indigo-50/40 px-5 py-4 space-y-4">
                       {/* 현재 구성원 */}
@@ -473,6 +563,34 @@ export default function ManagePage() {
                                   </div>
                                 ))}
                               </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                      {/* 숙제 프리셋 */}
+                      <div>
+                        <p className="text-xs font-semibold text-gray-500 mb-2">숙제 프리셋</p>
+                        <p className="text-xs text-gray-400 mb-2">
+                          이 반의 HomeworkList를 열 때 숙제가 없으면 아래 프리셋으로 자동 생성됩니다.
+                        </p>
+                        {presetsLoading ? (
+                          <p className="text-xs text-gray-400">불러오는 중…</p>
+                        ) : (
+                          <div className="space-y-2">
+                            {(presetsByClass[cls.id] ?? []).map(preset => (
+                              <PresetRow
+                                key={preset.id}
+                                preset={preset}
+                                onUpdate={(id, updates) => handleUpdatePreset(cls.id, id, updates)}
+                                onDelete={(id) => handleDeletePreset(cls.id, id)}
+                              />
+                            ))}
+                            {(presetsByClass[cls.id] ?? []).length < 4 && (
+                              <button
+                                onClick={() => handleAddPreset(cls.id)}
+                                className="text-xs text-indigo-600 hover:text-indigo-800 font-medium py-1">
+                                + 프리셋 추가
+                              </button>
                             )}
                           </div>
                         )}
