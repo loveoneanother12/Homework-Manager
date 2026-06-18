@@ -6,6 +6,7 @@ import ClassPreview from './pages/ClassPreview.jsx';
 import UnitManagement from './pages/UnitManagement.jsx';
 import SentenceManagement from './pages/SentenceManagement.jsx';
 import ManagePage from './pages/ManagePage.jsx';
+import ClassDetailPage from './pages/ClassDetailPage.jsx';
 import StudentHistory from './pages/StudentHistory.jsx';
 import TrashPage from './pages/TrashPage.jsx';
 import HomeworkList from './pages/HomeworkList.jsx';
@@ -17,6 +18,7 @@ export default function App() {
         <Routes>
           <Route path="/" element={<ClassList />} />
           <Route path="/manage" element={<ManagePage />} />
+          <Route path="/manage/class/:classId" element={<ClassDetailPage />} />
           <Route path="/student/:studentId/history" element={<StudentHistory />} />
           <Route path="/class/:className" element={<HomeworkList />} />
           <Route path="/class/:className/hw/:homeworkId" element={<StudentList />} />
