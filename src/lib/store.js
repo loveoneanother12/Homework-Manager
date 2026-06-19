@@ -226,6 +226,29 @@ export async function getHomework(id) {
   return data ?? null;
 }
 
+// 같은 반·같은 숙제명으로 가장 최근에 사용된 unit_id 반환 (초기 단원 자동 선택용)
+export async function getLastUnitForHomework(homeworkTitle, classId, currentHomeworkId) {
+  const { data: hws } = await supabase
+    .from('hw_homeworks')
+    .select('id')
+    .eq('title', homeworkTitle)
+    .eq('class_id', classId)
+    .neq('id', currentHomeworkId)
+    .is('deleted_at', null);
+  if (!hws?.length) return null;
+
+  const { data: record } = await supabase
+    .from('hw_homework_records')
+    .select('unit_id')
+    .in('homework_id', hws.map(h => h.id))
+    .not('unit_id', 'is', null)
+    .is('deleted_at', null)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return record?.unit_id ?? null;
+}
+
 export async function getHomeworksByIds(ids) {
   if (!ids.length) return [];
   const { data, error } = await supabase.from('hw_homeworks').select('*').in('id', ids);

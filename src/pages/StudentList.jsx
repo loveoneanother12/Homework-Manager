@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Link, useParams, useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import {
   getClassByName, getStudentsByClassId, getRecordsByStudentIds, getUnits,
-  getAbsentStudentIds, setAbsence, getHomework,
+  getAbsentStudentIds, setAbsence, getHomework, getLastUnitForHomework,
   getPendingSecondRoundRecords, addRecord, updateRecord, deleteRecord, getSentences,
 } from '../lib/store.js';
 import { pct } from '../lib/kpi.js';
@@ -76,6 +76,15 @@ export default function StudentList() {
           unit: latest ? (unitsById[latest.unit_id] ?? null) : null,
         };
       }));
+
+      // 같은 반·같은 숙제명의 지난 회차에서 사용된 단원으로 초기화
+      if (!silent && hw?.title && resolvedClassId) {
+        const lastUnitId = await getLastUnitForHomework(hw.title, resolvedClassId, homeworkId);
+        if (lastUnitId) {
+          const unit = allUnits.find(u => u.id === lastUnitId);
+          if (unit) setSharedUnit({ subject: unit.subject ?? '', unitId: lastUnitId });
+        }
+      }
     } finally {
       if (!silent) setLoading(false);
     }
