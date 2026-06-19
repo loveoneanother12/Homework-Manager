@@ -145,13 +145,9 @@ export default function TrashPage() {
     await refresh();
   }
 
-  async function handleRestoreAllRecords({ records, cls, hw }) {
+  async function handleRestoreAllRecords({ records, cls }) {
     if (cls?.deleted_at) {
       alert(`'${cls.class_name}' 반이 휴지통에 있어 복원이 불가능합니다.\n먼저 반을 복원해주세요.`);
-      return;
-    }
-    if (hw?.deleted_at) {
-      alert(`'${hw.title}' 숙제가 휴지통에 있어 복원이 불가능합니다.\n먼저 숙제를 복원해주세요.`);
       return;
     }
     let skipped = 0;
@@ -278,7 +274,7 @@ export default function TrashPage() {
                     ) : (
                       /* 채점 기록만 휴지통에 있는 경우 — 전체 복원 */
                       <button
-                        onClick={() => handleRestoreAllRecords({ records, cls, hw })}
+                        onClick={() => handleRestoreAllRecords({ records, cls })}
                         className="px-3 py-1.5 text-xs text-emerald-700 bg-emerald-50 rounded hover:bg-emerald-100 transition-colors font-medium">
                         전체 복원
                       </button>
