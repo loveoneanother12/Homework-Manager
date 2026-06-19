@@ -9,7 +9,12 @@ import {
 } from '../lib/store.js';
 import GradingCard from '../components/GradingCard.jsx';
 
-const fmtDate = ts => ts?.slice(0, 10) ?? '';
+const fmtDate = ts => {
+  if (!ts) return '';
+  const d = new Date(ts);
+  const pad = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+};
 
 export default function TrashPage() {
   const [deletedClasses, setDeletedClasses] = useState([]);
