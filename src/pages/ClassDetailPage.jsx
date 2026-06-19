@@ -5,7 +5,7 @@ import {
   getStudents, getStudentsByClassId, addStudentToClass, removeStudentFromClass, getAllClassMemberships,
   countRecordsByClass,
   getHomeworkPresets, addHomeworkPreset, updateHomeworkPreset, deleteHomeworkPreset,
-  getHomeworksByClass,
+  getHomeworksByClass, getGradedHomeworkIds,
 } from '../lib/store.js';
 import DeleteConfirmModal from '../components/DeleteConfirmModal.jsx';
 import { today } from '../lib/dateUtils.js';
@@ -100,6 +100,7 @@ export default function ClassDetailPage() {
 
   const [presets, setPresets] = useState([]);
   const [allHomeworks, setAllHomeworks] = useState([]);
+  const [gradedHwIds, setGradedHwIds] = useState(new Set());
 
   const [editMode, setEditMode] = useState(false);
   const [editForm, setEditForm] = useState(null);
@@ -110,13 +111,14 @@ export default function ClassDetailPage() {
   useEffect(() => {
     async function load() {
       setLoading(true);
-      const [classes, students, mems, classStudentsList, presetList, hwList] = await Promise.all([
+      const [classes, students, mems, classStudentsList, presetList, hwList, gradedIds] = await Promise.all([
         getClasses(),
         getStudents(),
         getAllClassMemberships(),
         getStudentsByClassId(classId),
         getHomeworkPresets(classId),
         getHomeworksByClass(classId),
+        getGradedHomeworkIds(classId),
       ]);
       const found = classes.find(c => c.id === classId);
       if (!found) { navigate('/manage', { replace: true }); return; }
@@ -127,6 +129,7 @@ export default function ClassDetailPage() {
       setClassStudents(classStudentsList);
       setPresets(presetList);
       setAllHomeworks(hwList);
+      setGradedHwIds(gradedIds);
       setLoading(false);
     }
     load();
@@ -210,9 +213,10 @@ export default function ClassDetailPage() {
 
   const days = cls.days_of_week?.split(',').filter(Boolean) ?? [];
 
-  // 날짜별 그룹핑 (최신순, 이미 session_date desc로 정렬되어 있음)
+  // 채점 기록 있는 숙제만 필터 후 날짜별 그룹핑 (최신순)
   const homeworkByDate = [];
   for (const hw of allHomeworks) {
+    if (!gradedHwIds.has(hw.id)) continue;
     const last = homeworkByDate[homeworkByDate.length - 1];
     if (last && last.date === hw.session_date) {
       last.homeworks.push(hw);

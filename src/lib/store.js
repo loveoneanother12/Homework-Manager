@@ -242,6 +242,17 @@ export async function getHomeworksByClass(classId) {
   return data ?? [];
 }
 
+export async function getGradedHomeworkIds(classId) {
+  const { data, error } = await supabase
+    .from('hw_records')
+    .select('homework_id')
+    .eq('class_id', classId)
+    .is('deleted_at', null)
+    .not('homework_id', 'is', null);
+  if (error) throw error;
+  return new Set((data ?? []).map(r => r.homework_id));
+}
+
 export async function addHomework(classId, sessionDate, title, period = null) {
   const { data, error } = await supabase.from('hw_homeworks')
     .insert({ class_id: classId, session_date: sessionDate, title, period }).select().single();
