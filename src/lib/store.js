@@ -233,6 +233,15 @@ export async function getHomeworksByIds(ids) {
   return data ?? [];
 }
 
+export async function getHomeworksByClass(classId) {
+  const { data, error } = await supabase.from('hw_homeworks').select('*')
+    .eq('class_id', classId).is('deleted_at', null)
+    .order('session_date', { ascending: false })
+    .order('period').order('created_at');
+  if (error) throw error;
+  return data ?? [];
+}
+
 export async function addHomework(classId, sessionDate, title, period = null) {
   const { data, error } = await supabase.from('hw_homeworks')
     .insert({ class_id: classId, session_date: sessionDate, title, period }).select().single();

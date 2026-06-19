@@ -5,6 +5,7 @@ import {
   getStudents, getStudentsByClassId, addStudentToClass, removeStudentFromClass, getAllClassMemberships,
   countRecordsByClass,
   getHomeworkPresets, addHomeworkPreset, updateHomeworkPreset, deleteHomeworkPreset,
+  getHomeworksByClass,
 } from '../lib/store.js';
 import DeleteConfirmModal from '../components/DeleteConfirmModal.jsx';
 import { today } from '../lib/dateUtils.js';
@@ -98,6 +99,7 @@ export default function ClassDetailPage() {
   const [memberSearch, setMemberSearch] = useState('');
 
   const [presets, setPresets] = useState([]);
+  const [allHomeworks, setAllHomeworks] = useState([]);
 
   const [editMode, setEditMode] = useState(false);
   const [editForm, setEditForm] = useState(null);
@@ -108,12 +110,13 @@ export default function ClassDetailPage() {
   useEffect(() => {
     async function load() {
       setLoading(true);
-      const [classes, students, mems, classStudentsList, presetList] = await Promise.all([
+      const [classes, students, mems, classStudentsList, presetList, hwList] = await Promise.all([
         getClasses(),
         getStudents(),
         getAllClassMemberships(),
         getStudentsByClassId(classId),
         getHomeworkPresets(classId),
+        getHomeworksByClass(classId),
       ]);
       const found = classes.find(c => c.id === classId);
       if (!found) { navigate('/manage', { replace: true }); return; }
@@ -123,6 +126,7 @@ export default function ClassDetailPage() {
       setMemberships(mems);
       setClassStudents(classStudentsList);
       setPresets(presetList);
+      setAllHomeworks(hwList);
       setLoading(false);
     }
     load();
@@ -205,6 +209,17 @@ export default function ClassDetailPage() {
   if (!cls) return null;
 
   const days = cls.days_of_week?.split(',').filter(Boolean) ?? [];
+
+  // 날짜별 그룹핑 (최신순, 이미 session_date desc로 정렬되어 있음)
+  const homeworkByDate = [];
+  for (const hw of allHomeworks) {
+    const last = homeworkByDate[homeworkByDate.length - 1];
+    if (last && last.date === hw.session_date) {
+      last.homeworks.push(hw);
+    } else {
+      homeworkByDate.push({ date: hw.session_date, homeworks: [hw] });
+    }
+  }
 
   return (
     <div className="space-y-4 pb-12">
@@ -393,6 +408,47 @@ export default function ClassDetailPage() {
         </div>
 
       </div>
+
+      {/* 날짜별 평가서 카드 */}
+      {homeworkByDate.length > 0 && (
+        <div className="bg-white rounded-3xl shadow-sm p-6 space-y-3">
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest">날짜별 평가서</p>
+          <div className="overflow-x-auto pb-2 -mx-1 px-1">
+            <div className="flex gap-3" style={{ width: 'max-content' }}>
+              {homeworkByDate.map(({ date, homeworks: hws }) => {
+                const [y, m, d] = date.split('-');
+                return (
+                  <div key={date}
+                    className="flex-shrink-0 w-52 bg-gray-50 rounded-2xl p-4 space-y-2.5">
+                    <p className="text-xs font-bold text-gray-500">
+                      {y}.{m}.{d}
+                    </p>
+                    <div className="space-y-1.5">
+                      {hws.map(hw => (
+                        <div key={hw.id} className="flex items-center justify-between gap-2">
+                          <span className="text-sm font-medium text-gray-800 truncate leading-tight">
+                            {hw.title}
+                            {hw.period && (
+                              <span className="ml-1 text-xs text-gray-400">{hw.period}교시</span>
+                            )}
+                          </span>
+                          <button
+                            onClick={() => navigate(
+                              `/class/${encodeURIComponent(cls.class_name)}/hw/${hw.id}/preview?date=${date}`
+                            )}
+                            className="flex-shrink-0 px-2.5 py-1 bg-indigo-50 text-indigo-600 rounded-lg text-xs font-semibold hover:bg-indigo-100 transition-colors">
+                            평가서
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 반 삭제 확인 모달 */}
       {deleteTarget && (
