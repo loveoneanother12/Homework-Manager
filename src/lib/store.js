@@ -244,7 +244,7 @@ export async function getHomeworksByClass(classId) {
 
 export async function getGradedHomeworkIds(classId) {
   const { data, error } = await supabase
-    .from('hw_records')
+    .from('hw_homework_records')
     .select('homework_id')
     .eq('class_id', classId)
     .is('deleted_at', null)

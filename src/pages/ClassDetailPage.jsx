@@ -111,26 +111,29 @@ export default function ClassDetailPage() {
   useEffect(() => {
     async function load() {
       setLoading(true);
-      const [classes, students, mems, classStudentsList, presetList, hwList, gradedIds] = await Promise.all([
-        getClasses(),
-        getStudents(),
-        getAllClassMemberships(),
-        getStudentsByClassId(classId),
-        getHomeworkPresets(classId),
-        getHomeworksByClass(classId),
-        getGradedHomeworkIds(classId),
-      ]);
-      const found = classes.find(c => c.id === classId);
-      if (!found) { navigate('/manage', { replace: true }); return; }
-      setCls(found);
-      setEditForm({ class_name: found.class_name, days_of_week: found.days_of_week ?? '', instructor: found.instructor ?? '' });
-      setAllStudents(students);
-      setMemberships(mems);
-      setClassStudents(classStudentsList);
-      setPresets(presetList);
-      setAllHomeworks(hwList);
-      setGradedHwIds(gradedIds);
-      setLoading(false);
+      try {
+        const [classes, students, mems, classStudentsList, presetList, hwList, gradedIds] = await Promise.all([
+          getClasses(),
+          getStudents(),
+          getAllClassMemberships(),
+          getStudentsByClassId(classId),
+          getHomeworkPresets(classId),
+          getHomeworksByClass(classId),
+          getGradedHomeworkIds(classId),
+        ]);
+        const found = classes.find(c => c.id === classId);
+        if (!found) { navigate('/manage', { replace: true }); return; }
+        setCls(found);
+        setEditForm({ class_name: found.class_name, days_of_week: found.days_of_week ?? '', instructor: found.instructor ?? '' });
+        setAllStudents(students);
+        setMemberships(mems);
+        setClassStudents(classStudentsList);
+        setPresets(presetList);
+        setAllHomeworks(hwList);
+        setGradedHwIds(gradedIds);
+      } finally {
+        setLoading(false);
+      }
     }
     load();
   }, [classId]);
