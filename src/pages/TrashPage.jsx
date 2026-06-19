@@ -350,13 +350,14 @@ export default function TrashPage() {
                   {selected.hw ? (
                     <>
                       {selected.hw.title} — 삭제된 채점 기록
-                      <span className="block text-sm font-normal text-gray-400 mt-0.5">{selected.date}</span>
+                      <span className="block text-sm font-normal text-gray-400 mt-0.5">
+                        {selected.date}
+                        <span className="mx-1.5 text-gray-300">|</span>
+                        {selected.cls?.class_name ?? '반 미지정'}
+                      </span>
                     </>
                   ) : '숙제 미지정 — 삭제된 채점 기록'}
                 </h3>
-                <span className="text-xs text-gray-500">
-                  {selected.cls?.class_name ?? '반 미지정'} · {selected.date}
-                </span>
                 <span className="text-xs text-gray-400">학생 {selected.studentNames.length}명 · {selected.records.length}건</span>
               </div>
               <button
