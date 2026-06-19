@@ -280,7 +280,7 @@ export default function ClassDetailPage() {
         <div className="bg-white rounded-3xl shadow-sm p-6 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-5">
           {/* 반 정보 */}
           <div className="space-y-2">
-            <h1 className="text-2xl font-bold text-gray-900">{cls.class_name}</h1>
+            <h1 className="text-2xl font-extrabold text-indigo-700">{cls.class_name}</h1>
             <div className="flex items-center gap-2 flex-wrap">
               {cls.instructor && (
                 <span className="text-xs font-semibold text-gray-500 bg-gray-100 px-3 py-1 rounded-full">

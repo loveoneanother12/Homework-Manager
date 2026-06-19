@@ -232,7 +232,7 @@ export default function ClassPreview() {
           className="text-gray-400 hover:text-gray-600 text-sm">
           {fromClassDetail ? '← 반 상세' : '← 학생 목록'}
         </button>
-        <h1 className="text-xl font-bold text-gray-900">{decoded} — 평가서 미리보기</h1>
+        <h1 className="text-xl font-extrabold text-indigo-700">{decoded} — 평가서 미리보기</h1>
         {homework && (
           <span className="text-sm font-medium text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-lg">
             {homework.period ? `${homework.period}교시 · ` : ''}{homework.title}

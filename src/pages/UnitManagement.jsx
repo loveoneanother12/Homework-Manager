@@ -182,7 +182,7 @@ export default function UnitManagement() {
   return (
     <div className="max-w-3xl">
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">단원 가중치 관리</h1>
+        <h1 className="text-2xl font-extrabold text-indigo-700">단원 가중치 관리</h1>
         <button onClick={() => startAdd(SUBJECTS[0])}
           className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors">
           + 단원 추가

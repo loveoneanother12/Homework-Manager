@@ -252,7 +252,7 @@ export default function ManagePage() {
 
   return (
     <div className="space-y-10">
-      <h1 className="text-2xl font-bold text-gray-900">학생/반 관리</h1>
+      <h1 className="text-2xl font-extrabold text-indigo-700">학생/반 관리</h1>
 
       {/* ── 반 관리 ── */}
       <section>

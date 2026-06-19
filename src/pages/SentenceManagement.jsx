@@ -160,7 +160,7 @@ export default function SentenceManagement() {
   return (
     <div className="max-w-3xl">
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">문장 풀 관리</h1>
+        <h1 className="text-2xl font-extrabold text-indigo-700">문장 풀 관리</h1>
         <div className="flex gap-2">
           <button onClick={handleReset} className="px-4 py-2 bg-gray-100 text-gray-600 rounded-lg text-sm hover:bg-gray-200">기본값으로 초기화</button>
           <button onClick={() => setShowAdd(v => !v)} className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700">+ 문장 추가</button>

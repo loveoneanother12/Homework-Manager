@@ -243,7 +243,7 @@ export default function StudentList() {
     <div>
       <div className="flex items-center gap-3 mb-6">
         <button onClick={() => navigate(`/class/${className}?date=${sessionDate}`)} className="text-gray-400 hover:text-gray-600 text-sm">← 숙제 목록</button>
-        <h1 className="text-2xl font-bold text-gray-900">{decoded}</h1>
+        <h1 className="text-2xl font-extrabold text-indigo-700">{decoded}</h1>
         {homework && (
           <span className="text-sm font-medium text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-lg">
             {homework.period ? `${homework.period}교시 · ` : ''}{homework.title}

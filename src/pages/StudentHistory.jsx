@@ -151,7 +151,7 @@ export default function StudentHistory() {
       <div className="mb-8 pb-5 border-b border-gray-200">
         <div className="flex items-center gap-3">
           <div className="flex items-baseline gap-3 flex-1 flex-wrap">
-            <h1 className="text-2xl font-bold text-gray-900">{student.name}</h1>
+            <h1 className="text-2xl font-extrabold text-indigo-700">{student.name}</h1>
             {student.grade && (
               <span className="text-sm font-medium text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded">
                 {student.grade}

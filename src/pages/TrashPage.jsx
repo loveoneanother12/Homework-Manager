@@ -212,7 +212,7 @@ export default function TrashPage() {
   return (
     <div className="space-y-10">
       <div>
-        <h1 className="text-2xl font-bold text-gray-700">휴지통</h1>
+        <h1 className="text-2xl font-extrabold text-indigo-700">휴지통</h1>
         <p className="mt-1 text-sm text-gray-400">삭제된 항목이 보관됩니다. 복원하면 원래 자리로 돌아갑니다.</p>
       </div>
 

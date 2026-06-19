@@ -175,7 +175,7 @@ export default function HomeworkList() {
     <div>
       <div className="flex items-center gap-3 mb-6">
         <button onClick={() => navigate('/')} className="text-gray-400 hover:text-gray-600 text-sm">← 반 목록</button>
-        <h1 className="text-2xl font-bold text-gray-900">{decoded}</h1>
+        <h1 className="text-2xl font-extrabold text-indigo-700">{decoded}</h1>
       </div>
 
       {/* 날짜 선택 + 숙제 없음 토글 */}

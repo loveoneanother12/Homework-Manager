@@ -61,7 +61,7 @@ export default function ClassList() {
   return (
     <div>
       <div className="flex items-center justify-between mb-5">
-        <h1 className="text-2xl font-bold text-gray-900">채점</h1>
+        <h1 className="text-2xl font-extrabold text-indigo-700">채점</h1>
       </div>
 
       {/* 검색 · 필터 */}
