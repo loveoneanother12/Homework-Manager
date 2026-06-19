@@ -9,16 +9,21 @@ import {
 
 const GRADES = ['초1','초2','초3','초4','초5','초6','중1','중2','중3'];
 
+// ─── 교시별 테마 ─────────────────────────────────────────────────────────────
+function periodTheme(period) {
+  const n = Number(period);
+  if (n === 1) return { bar: '#ef4444', hoverBorder: 'hover:border-red-200',    dot: '#ef4444', periodText: 'text-red-500'    };
+  if (n === 2) return { bar: '#6366f1', hoverBorder: 'hover:border-indigo-200', dot: '#6366f1', periodText: 'text-indigo-500' };
+  return            { bar: '#9ca3af', hoverBorder: 'hover:border-gray-200',   dot: '#9ca3af', periodText: 'text-gray-400'   };
+}
+
 // ─── 작은 카드 (횡스크롤용) ──────────────────────────────────────────────────
-function MiniKpiBar({ rate, color }) {
+function MiniKpiBar({ rate, hexColor }) {
   return (
     <div className="h-1 bg-gray-100 rounded-full overflow-hidden">
       <div
         className="h-full rounded-full"
-        style={{
-          width: `${Math.min(rate * 100, 100)}%`,
-          background: color === 'emerald' ? '#10b981' : '#6366f1',
-        }}
+        style={{ width: `${Math.min(rate * 100, 100)}%`, background: hexColor }}
       />
     </div>
   );
@@ -36,10 +41,11 @@ function ScorePill({ value }) {
   );
 }
 
-function HScrollCard({ record }) {
+function HScrollCard({ record, period }) {
   const kpi = record._kpi1;
+  const theme = periodTheme(period);
   return (
-    <div className="flex-shrink-0 w-44 bg-white rounded-2xl border border-gray-100 shadow-sm p-3.5 hover:shadow-md hover:border-indigo-100 transition-all">
+    <div className={`flex-shrink-0 w-44 bg-white rounded-2xl border border-gray-100 shadow-sm p-3.5 hover:shadow-md ${theme.hoverBorder} transition-all`}>
       {/* 날짜 + 뱃지 */}
       <div className="flex items-center justify-between mb-2.5 gap-1">
         <span className="text-xs font-semibold text-gray-700 tabular-nums">{record.session_date}</span>
@@ -58,14 +64,14 @@ function HScrollCard({ record }) {
             <span className="text-gray-400">이행률</span>
             <span className="font-semibold text-gray-700">{pct(kpi.completion_rate)}</span>
           </div>
-          <MiniKpiBar rate={kpi.completion_rate} color="indigo" />
+          <MiniKpiBar rate={kpi.completion_rate} hexColor={theme.bar} />
         </div>
         <div className="space-y-0.5">
           <div className="flex justify-between text-[10px]">
             <span className="text-gray-400">정답률</span>
             <span className="font-semibold text-gray-700">{pct(kpi.accuracy_rate)}</span>
           </div>
-          <MiniKpiBar rate={kpi.accuracy_rate} color="emerald" />
+          <MiniKpiBar rate={kpi.accuracy_rate} hexColor="#10b981" />
         </div>
       </div>
 
@@ -90,15 +96,22 @@ function HScrollCard({ record }) {
 
 // ─── 숙제 그룹 행 ────────────────────────────────────────────────────────────
 function HomeworkRow({ title, period, unitLabel, records }) {
+  const theme = periodTheme(period);
   return (
     <div>
       {/* 숙제 헤더 */}
       <div className="flex items-center gap-2 mb-2">
+        {period != null && (
+          <span
+            className="flex-shrink-0 w-2 h-2 rounded-full"
+            style={{ background: theme.dot }}
+          />
+        )}
         <span className="text-sm font-medium text-gray-800 truncate">
           {title ?? '숙제 미지정'}
         </span>
         {period != null && (
-          <span className="text-xs text-gray-400 flex-shrink-0">{period}교시</span>
+          <span className={`text-xs font-medium flex-shrink-0 ${theme.periodText}`}>{period}교시</span>
         )}
         {unitLabel && (
           <span className="text-xs text-gray-400 flex-shrink-0 hidden sm:inline">· {unitLabel}</span>
@@ -111,7 +124,7 @@ function HomeworkRow({ title, period, unitLabel, records }) {
         className="flex gap-2.5 overflow-x-auto pb-1"
         style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
       >
-        {records.map(r => <HScrollCard key={r.id} record={r} />)}
+        {records.map(r => <HScrollCard key={r.id} record={r} period={period} />)}
       </div>
     </div>
   );
