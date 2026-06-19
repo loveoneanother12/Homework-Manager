@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { pct } from '../lib/kpi.js';
+import { pct, calcFirst, calcSecond } from '../lib/kpi.js';
 import {
   getStudent, updateStudent, getRecordsByStudent, getClasses, getUnits,
   getHomeworksByIds, getAbsencesByStudentId,
@@ -94,6 +94,165 @@ function HScrollCard({ record, period }) {
   );
 }
 
+// ─── 주간 데이터 집계 ─────────────────────────────────────────────────────────
+
+function getMondayOf(date) {
+  const d = new Date(date);
+  const day = d.getDay(); // 0=Sun
+  d.setDate(d.getDate() - (day === 0 ? 6 : day - 1));
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function buildWeeklyData(records) {
+  const thisMonday = getMondayOf(new Date());
+  const weeks = Array.from({ length: 8 }, (_, i) => {
+    const start = new Date(thisMonday);
+    start.setDate(thisMonday.getDate() - (7 - i) * 7);
+    const end = new Date(start);
+    end.setDate(start.getDate() + 6);
+    end.setHours(23, 59, 59, 999);
+    return { start, end, label: `${start.getMonth() + 1}/${start.getDate()}`, recs: [] };
+  });
+
+  for (const r of records) {
+    if (!r.session_date) continue;
+    const d = new Date(r.session_date + 'T00:00:00');
+    for (const w of weeks) {
+      if (d >= w.start && d <= w.end) { w.recs.push(r); break; }
+    }
+  }
+
+  return weeks.map(w => {
+    if (!w.recs.length) return { label: w.label, hasData: false };
+    const sum = w.recs.reduce((acc, r) => ({
+      total_count:     acc.total_count     + (r.total_count     ?? 0),
+      not_attempted:   acc.not_attempted   + (r.not_attempted   ?? 0),
+      gave_up:         acc.gave_up         + (r.gave_up         ?? 0),
+      wrong_attempted: acc.wrong_attempted + (r.wrong_attempted ?? 0),
+      retry_total:     acc.retry_total     + (r.retry_total     ?? 0),
+      retry_correct:   acc.retry_correct   + (r.retry_correct   ?? 0),
+      retry_wrong:     acc.retry_wrong     + (r.retry_wrong     ?? 0),
+      retry_gave_up:   acc.retry_gave_up   + (r.retry_gave_up   ?? 0),
+    }), { total_count:0, not_attempted:0, gave_up:0, wrong_attempted:0,
+          retry_total:0, retry_correct:0, retry_wrong:0, retry_gave_up:0 });
+
+    const kpi1 = calcFirst(sum);
+    const kpi2 = sum.retry_total > 0 ? calcSecond(sum, kpi1.first_wrongs) : null;
+    return {
+      label: w.label,
+      hasData: true,
+      completion_rate:    kpi1.completion_rate,
+      accuracy_rate:      kpi1.accuracy_rate,
+      understanding_rate: kpi2?.understanding_rate ?? null,
+    };
+  });
+}
+
+// ─── 꺾은선 그래프 (SVG) ──────────────────────────────────────────────────────
+
+const TREND_LINES = [
+  { key: 'completion_rate',    label: '이행률'     },
+  { key: 'accuracy_rate',      color: '#10b981', label: '정답률'     },
+  { key: 'understanding_rate', color: '#f59e0b', label: '2차 정답률' },
+];
+
+function MiniLineChart({ weeklyData, periodColor }) {
+  const W = 240, H = 90;
+  const PL = 8, PR = 8, PT = 8, PB = 22;
+  const cW = W - PL - PR;
+  const cH = H - PT - PB;
+  const N = weeklyData.length;
+
+  const xOf = i => PL + (N <= 1 ? cW / 2 : (i / (N - 1)) * cW);
+  const yOf = rate => PT + (1 - Math.max(0, Math.min(1, rate))) * cH;
+
+  function buildPath(key) {
+    let d = '', pen = false;
+    for (let i = 0; i < N; i++) {
+      const w = weeklyData[i];
+      if (!w.hasData || w[key] == null) { pen = false; continue; }
+      const x = xOf(i).toFixed(1), y = yOf(w[key]).toFixed(1);
+      d += pen ? `L${x} ${y} ` : `M${x} ${y} `;
+      pen = true;
+    }
+    return d.trim();
+  }
+
+  const lines = TREND_LINES.map(l => ({ ...l, color: l.color ?? periodColor }));
+
+  return (
+    <div>
+      <svg width={W} height={H} style={{ display: 'block', overflow: 'visible' }}>
+        {/* 그리드 */}
+        {[0, 0.25, 0.5, 0.75, 1].map(r => (
+          <line key={r}
+            x1={PL} y1={yOf(r)} x2={W - PR} y2={yOf(r)}
+            stroke="#f3f4f6" strokeWidth="1"
+            strokeDasharray={r > 0 && r < 1 ? '3 3' : undefined}
+          />
+        ))}
+
+        {/* 선 */}
+        {lines.map(({ key, color }) => {
+          const d = buildPath(key);
+          return d ? (
+            <path key={key} d={d}
+              fill="none" stroke={color} strokeWidth="1.8"
+              strokeLinejoin="round" strokeLinecap="round" />
+          ) : null;
+        })}
+
+        {/* 점 */}
+        {lines.map(({ key, color }) =>
+          weeklyData.map((w, i) =>
+            w.hasData && w[key] != null ? (
+              <circle key={`${key}-${i}`}
+                cx={xOf(i)} cy={yOf(w[key])} r="2.5"
+                fill="white" stroke={color} strokeWidth="1.5" />
+            ) : null
+          )
+        )}
+
+        {/* X축 레이블 */}
+        {weeklyData.map((w, i) => (
+          <text key={i}
+            x={xOf(i)} y={H - 4}
+            textAnchor="middle" fontSize="8"
+            fill={w.hasData ? '#9ca3af' : '#e5e7eb'}>
+            {w.label}
+          </text>
+        ))}
+      </svg>
+
+      {/* 범례 */}
+      <div className="flex items-center gap-3 mt-1">
+        {lines.map(({ color, label }) => (
+          <div key={label} className="flex items-center gap-1">
+            <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: color }} />
+            <span className="text-[9px] text-gray-400">{label}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── 추이 카드 ────────────────────────────────────────────────────────────────
+
+function HomeworkTrendCard({ records, period }) {
+  const theme = periodTheme(period);
+  const weeklyData = buildWeeklyData(records);
+  if (!weeklyData.some(w => w.hasData)) return null;
+
+  return (
+    <div className="flex-shrink-0 w-72 bg-gray-50 rounded-2xl border border-gray-100 shadow-sm p-3.5">
+      <p className="text-[10px] font-semibold text-gray-400 mb-2.5 tracking-wide">8주 추이</p>
+      <MiniLineChart weeklyData={weeklyData} periodColor={theme.bar} />
+    </div>
+  );
+}
+
 // ─── 숙제 그룹 행 ────────────────────────────────────────────────────────────
 function HomeworkRow({ title, period, unitLabel, records }) {
   const theme = periodTheme(period);
@@ -124,6 +283,7 @@ function HomeworkRow({ title, period, unitLabel, records }) {
         className="flex gap-2.5 overflow-x-auto pb-1"
         style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
       >
+        {records.length >= 2 && <HomeworkTrendCard records={records} period={period} />}
         {records.map(r => <HScrollCard key={r.id} record={r} period={period} />)}
       </div>
     </div>
