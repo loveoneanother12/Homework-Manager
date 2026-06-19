@@ -147,66 +147,87 @@ export default function ClassPreview() {
     setSaveStates(s => ({ ...s, [`2:${recordId}`]: 'saved' }));
   }
 
+  async function buildPDF(withRecords) {
+    const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    const TITLE_W_MM = CARD_MM_W * 2;
+
+    const titleEl = pdfTitleRef.current;
+    let titleDataUrl = null;
+    let titleHeightMM = 0;
+    if (titleEl) {
+      const tc = await html2canvas(titleEl, { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false });
+      titleDataUrl = tc.toDataURL('image/png');
+      titleHeightMM = TITLE_W_MM * tc.height / tc.width;
+    }
+    const TITLE_GAP = 2;
+    const cardsStartY = MARGIN + titleHeightMM + TITLE_GAP;
+
+    function addTitle() {
+      if (titleDataUrl) pdf.addImage(titleDataUrl, 'PNG', MARGIN, MARGIN, TITLE_W_MM, titleHeightMM);
+    }
+
+    const captured = await Promise.all(
+      withRecords.map(async entry => {
+        const el = pdfCardRefs.current[entry.student.id];
+        if (!el) return null;
+        const canvas = await html2canvas(el, { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false });
+        const heightMM = Math.max(CARD_MM_H_MIN, CARD_MM_W * canvas.height / canvas.width);
+        return { canvas, heightMM };
+      })
+    );
+    const valid = captured.filter(Boolean);
+
+    addTitle();
+    let currentY = cardsStartY;
+    for (let i = 0; i < valid.length; i += 2) {
+      const left = valid[i];
+      const right = valid[i + 1] ?? null;
+      const rowHeight = Math.max(left.heightMM, right?.heightMM ?? 0);
+
+      if (currentY + rowHeight > A4_H - MARGIN) {
+        pdf.addPage();
+        addTitle();
+        currentY = cardsStartY;
+      }
+
+      pdf.addImage(left.canvas.toDataURL('image/png'), 'PNG', MARGIN + 0.5, currentY + 0.5, CARD_MM_W - 1, left.heightMM - 1);
+      if (right) {
+        pdf.addImage(right.canvas.toDataURL('image/png'), 'PNG', MARGIN + CARD_MM_W + 0.5, currentY + 0.5, CARD_MM_W - 1, right.heightMM - 1);
+      }
+
+      currentY += rowHeight + ROW_GAP;
+    }
+
+    return pdf;
+  }
+
   async function handleExportPDF() {
     const withRecords = entries.filter(e => e.record && !absentIds.has(e.student.id));
     if (!withRecords.length) return alert('채점 기록이 있는 학생이 없습니다.');
     setExporting(true);
     try {
       await flushAll();
-      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-      const TITLE_W_MM = CARD_MM_W * 2; // 200mm — 페이지 전체 폭(여백 제외)
-
-      // 타이틀 캡처 (한국어 → html2canvas로 렌더링)
-      const titleEl = pdfTitleRef.current;
-      let titleDataUrl = null;
-      let titleHeightMM = 0;
-      if (titleEl) {
-        const tc = await html2canvas(titleEl, { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false });
-        titleDataUrl = tc.toDataURL('image/png');
-        titleHeightMM = TITLE_W_MM * tc.height / tc.width;
-      }
-      const TITLE_GAP = 2;
-      const cardsStartY = MARGIN + titleHeightMM + TITLE_GAP;
-
-      function addTitle() {
-        if (titleDataUrl) pdf.addImage(titleDataUrl, 'PNG', MARGIN, MARGIN, TITLE_W_MM, titleHeightMM);
-      }
-
-      // 모든 카드를 먼저 캡처해 실제 높이(mm) 계산
-      const captured = await Promise.all(
-        withRecords.map(async entry => {
-          const el = pdfCardRefs.current[entry.student.id];
-          if (!el) return null;
-          const canvas = await html2canvas(el, { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false });
-          const heightMM = Math.max(CARD_MM_H_MIN, CARD_MM_W * canvas.height / canvas.width);
-          return { canvas, heightMM };
-        })
-      );
-      const valid = captured.filter(Boolean);
-
-      // 쌍(좌+우) 단위로 가변 높이 레이아웃
-      addTitle();
-      let currentY = cardsStartY;
-      for (let i = 0; i < valid.length; i += 2) {
-        const left = valid[i];
-        const right = valid[i + 1] ?? null;
-        const rowHeight = Math.max(left.heightMM, right?.heightMM ?? 0);
-
-        if (currentY + rowHeight > A4_H - MARGIN) {
-          pdf.addPage();
-          addTitle();
-          currentY = cardsStartY;
-        }
-
-        pdf.addImage(left.canvas.toDataURL('image/png'), 'PNG', MARGIN + 0.5, currentY + 0.5, CARD_MM_W - 1, left.heightMM - 1);
-        if (right) {
-          pdf.addImage(right.canvas.toDataURL('image/png'), 'PNG', MARGIN + CARD_MM_W + 0.5, currentY + 0.5, CARD_MM_W - 1, right.heightMM - 1);
-        }
-
-        currentY += rowHeight + ROW_GAP;
-      }
-
+      const pdf = await buildPDF(withRecords);
       pdf.save(`${decoded}_${homework?.title ?? '숙제'}_평가서_${sessionDate}.pdf`);
+    } catch (err) {
+      console.error(err);
+      alert('PDF 생성 중 오류가 발생했습니다.');
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  async function handlePrintPDF() {
+    const withRecords = entries.filter(e => e.record && !absentIds.has(e.student.id));
+    if (!withRecords.length) return alert('채점 기록이 있는 학생이 없습니다.');
+    setExporting(true);
+    try {
+      await flushAll();
+      const pdf = await buildPDF(withRecords);
+      const url = URL.createObjectURL(pdf.output('blob'));
+      const w = window.open(url, '_blank');
+      if (w) w.addEventListener('load', () => { w.print(); URL.revokeObjectURL(url); });
+      else URL.revokeObjectURL(url);
     } catch (err) {
       console.error(err);
       alert('PDF 생성 중 오류가 발생했습니다.');
@@ -250,10 +271,16 @@ export default function ClassPreview() {
           채점 완료 {withRecords.length}명 · 미채점 {withoutRecords.length}명
           {absentEntries.length > 0 && <> · 결석 {absentEntries.length}명</>}
         </div>
-        <button onClick={handleExportPDF} disabled={exporting || !withRecords.length}
-          className={`px-5 py-2.5 rounded-xl font-semibold text-sm transition-all ${exporting ? 'bg-gray-200 text-gray-400 cursor-wait' : !withRecords.length ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-sm hover:shadow-md'}`}>
-          {exporting ? '⏳ PDF 생성 중...' : '📄 PDF 다운로드'}
-        </button>
+        <div className="flex gap-2">
+          <button onClick={handlePrintPDF} disabled={exporting || !withRecords.length}
+            className={`px-5 py-2.5 rounded-xl font-semibold text-sm transition-all ${exporting ? 'bg-gray-200 text-gray-400 cursor-wait' : !withRecords.length ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-white text-indigo-600 border border-indigo-300 hover:bg-indigo-50 shadow-sm'}`}>
+            {exporting ? '⏳ 생성 중...' : '🖨️ PDF 출력'}
+          </button>
+          <button onClick={handleExportPDF} disabled={exporting || !withRecords.length}
+            className={`px-5 py-2.5 rounded-xl font-semibold text-sm transition-all ${exporting ? 'bg-gray-200 text-gray-400 cursor-wait' : !withRecords.length ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-sm hover:shadow-md'}`}>
+            {exporting ? '⏳ 생성 중...' : '📄 PDF 다운로드'}
+          </button>
+        </div>
       </div>
 
       {absentEntries.length > 0 && (
