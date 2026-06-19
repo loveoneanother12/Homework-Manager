@@ -247,7 +247,11 @@ export default function TrashPage() {
                     </h3>
                     <span className="text-xl opacity-50">🗑</span>
                   </div>
-                  <p className="text-xs text-gray-400 mb-1.5">학생 {studentNames.length}명 · 기록 {records.length}건</p>
+                  <p className="text-xs text-gray-400 mb-1.5">
+                    학생 {studentNames.length}명 · 기록 {records.length}건
+                    <span className="mx-1.5 text-gray-300">·</span>
+                    삭제일 {fmtDate(hw?.deleted_at ?? records[0]?.deleted_at)}
+                  </p>
                   <div className="flex gap-1 flex-wrap">
                     {studentNames.map((name, i) => (
                       <span key={i} className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">{name}</span>
