@@ -7,6 +7,7 @@ import {
   getHomeworkPresets, addHomeworkPreset, updateHomeworkPreset, deleteHomeworkPreset,
 } from '../lib/store.js';
 import DeleteConfirmModal from '../components/DeleteConfirmModal.jsx';
+import { today } from '../lib/dateUtils.js';
 
 const DAYS = ['월', '화', '수', '목', '금', '토', '일'];
 
@@ -285,6 +286,11 @@ export default function ClassDetailPage() {
               <span className="text-sm text-gray-400">학생 {classStudents.length}명</span>
             </div>
             <div className="flex gap-2 flex-shrink-0">
+              <button
+                onClick={() => navigate(`/class/${encodeURIComponent(cls.class_name)}?date=${today()}`)}
+                className="px-3 py-1.5 text-xs text-white bg-indigo-600 rounded hover:bg-indigo-700 transition-colors font-medium">
+                오늘 숙제 →
+              </button>
               <button
                 onClick={() => setEditMode(true)}
                 className="px-3 py-1.5 text-xs text-indigo-600 bg-indigo-50 rounded hover:bg-indigo-100 transition-colors font-medium">
