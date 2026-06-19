@@ -489,6 +489,7 @@ export default function GradingPanel({
   const [step, setStep] = useState(1);
   const [secondTarget, setSecondTarget] = useState(null);
   const [showSecondPrompt, setShowSecondPrompt] = useState(false);
+  const [showPendingInfo, setShowPendingInfo] = useState(false);
 
   async function handleFirstSaved(f, kpi1) {
     await onSaveFirst(f, kpi1);
@@ -506,7 +507,16 @@ export default function GradingPanel({
   }
 
   const step2Badge = pendingRecords.length > 0
-    ? <span className="ml-1.5 text-xs bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded-full font-medium">{pendingRecords.length}</span>
+    ? (
+      <span className="inline-flex items-center gap-1 ml-1.5">
+        <span className="text-xs bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded-full font-medium">{pendingRecords.length}</span>
+        <button
+          onClick={e => { e.stopPropagation(); setShowPendingInfo(true); }}
+          className="text-gray-400 hover:text-indigo-500 transition-colors text-xs leading-none"
+          aria-label="안내 보기"
+        >ⓘ</button>
+      </span>
+    )
     : null;
 
   return (
@@ -531,6 +541,28 @@ export default function GradingPanel({
                   if (pendingRecords.length > 0) setSecondTarget(pendingRecords[0]);
                 }}
                 className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors">
+                확인
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 지난 숙제 오답 안내 팝업 */}
+      {showPendingInfo && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-sm p-6 space-y-4">
+            <p className="font-semibold text-gray-900 text-sm">지난 숙제 오답 목록 안내</p>
+            <p className="text-sm text-gray-600 leading-relaxed">
+              목록에는 아직 오답 데이터가 입력되지 않은 이전 회차가 <b>모두</b> 표시됩니다.
+            </p>
+            <p className="text-sm text-gray-600 leading-relaxed">
+              1차 채점 저장 후 자동으로 안내되는 팝업에서는 <b>가장 최근 미처리 회차 1건</b>만 선택되어 진행됩니다. 나머지 회차는 이 탭에서 직접 선택해 처리할 수 있습니다.
+            </p>
+            <div className="flex justify-end">
+              <button
+                onClick={() => setShowPendingInfo(false)}
+                className="px-5 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors">
                 확인
               </button>
             </div>
