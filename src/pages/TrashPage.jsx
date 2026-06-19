@@ -218,7 +218,12 @@ export default function TrashPage() {
                   }`}>
                   <div className="flex items-start justify-between mb-1">
                     <h3 className="font-semibold text-gray-800 text-base">
-                      {hw ? `${date} · ${hw.title}` : '숙제 미지정'}
+                      {hw ? (
+                        <>
+                          {hw.title}
+                          <span className="block text-sm font-normal text-gray-400 mt-0.5">{date}</span>
+                        </>
+                      ) : '숙제 미지정'}
                     </h3>
                     <span className="text-xl opacity-50">🗑</span>
                   </div>
@@ -342,7 +347,12 @@ export default function TrashPage() {
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
               <div className="flex items-baseline gap-3 flex-wrap">
                 <h3 className="font-bold text-gray-800">
-                  {selected.hw ? `${selected.date} · ${selected.hw.title}` : '숙제 미지정'} — 삭제된 채점 기록
+                  {selected.hw ? (
+                    <>
+                      {selected.hw.title} — 삭제된 채점 기록
+                      <span className="block text-sm font-normal text-gray-400 mt-0.5">{selected.date}</span>
+                    </>
+                  ) : '숙제 미지정 — 삭제된 채점 기록'}
                 </h3>
                 <span className="text-xs text-gray-500">
                   {selected.cls?.class_name ?? '반 미지정'} · {selected.date}
