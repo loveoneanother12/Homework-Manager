@@ -19,6 +19,8 @@ export default function ClassPreview() {
 
   const [searchParams] = useSearchParams();
   const sessionDate = searchParams.get('date') ?? today();
+  const fromClassDetail = searchParams.get('from') === 'class-detail';
+  const fromClassId = searchParams.get('classId');
 
   const [entries, setEntries] = useState([]);
   const [homework, setHomework] = useState(null);
@@ -222,7 +224,14 @@ export default function ClassPreview() {
   return (
     <div>
       <div className="flex items-center gap-3 mb-6">
-        <button onClick={() => navigate(`/class/${className}/hw/${homeworkId}?date=${sessionDate}`)} className="text-gray-400 hover:text-gray-600 text-sm">← 학생 목록</button>
+        <button
+          onClick={() => fromClassDetail && fromClassId
+            ? navigate(`/manage/class/${fromClassId}`)
+            : navigate(`/class/${className}/hw/${homeworkId}?date=${sessionDate}`)
+          }
+          className="text-gray-400 hover:text-gray-600 text-sm">
+          {fromClassDetail ? '← 반 상세' : '← 학생 목록'}
+        </button>
         <h1 className="text-xl font-bold text-gray-900">{decoded} — 평가서 미리보기</h1>
         {homework && (
           <span className="text-sm font-medium text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-lg">

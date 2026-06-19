@@ -441,7 +441,7 @@ export default function ClassDetailPage() {
                           </span>
                           <button
                             onClick={() => navigate(
-                              `/class/${encodeURIComponent(cls.class_name)}/hw/${hw.id}/preview?date=${date}`
+                              `/class/${encodeURIComponent(cls.class_name)}/hw/${hw.id}/preview?date=${date}&from=class-detail&classId=${classId}`
                             )}
                             className="flex-shrink-0 px-2.5 py-1 bg-indigo-50 text-indigo-600 rounded-lg text-xs font-semibold hover:bg-indigo-100 transition-colors">
                             평가서
