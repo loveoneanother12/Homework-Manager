@@ -547,8 +547,8 @@ export default function GradingPanel({
       {/* Step 탭 */}
       <div className="flex border-b border-gray-200">
         {[
-          { num: 1, label: '이번 숙제 1차 채점' },
-          { num: 2, label: '이전 회차 2차 채점', badge: step2Badge },
+          { num: 1, label: '이번 숙제 채점' },
+          { num: 2, label: '지난 숙제 오답', badge: step2Badge },
         ].map(({ num, label, badge }) => (
           <button key={num} onClick={() => setStep(num)}
             className={`flex-1 py-3 text-sm font-medium transition-colors ${step === num ? 'text-indigo-700 border-b-2 border-indigo-600 bg-white' : 'text-gray-500 hover:text-gray-700 bg-gray-50'}`}>
