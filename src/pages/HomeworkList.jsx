@@ -104,11 +104,19 @@ export default function HomeworkList() {
       ]);
 
       // 숙제가 없고 숙제 없음 플래그도 false일 때 프리셋으로 자동 생성
+      // 단, 반의 수업 요일로 지정된 날에만 자동 생성
       let finalHws = hws;
       if (hws.length === 0 && !noHw) {
-        const presets = await getHomeworkPresets(resolvedClassId);
-        if (presets.length > 0) {
-          finalHws = await applyHomeworkPresets(resolvedClassId, sessionDate);
+        const scheduledDays = cls.days_of_week?.split(',').filter(Boolean) ?? [];
+        const [y, m, d] = sessionDate.split('-').map(Number);
+        const dayName = ['일', '월', '화', '수', '목', '금', '토'][new Date(y, m - 1, d).getDay()];
+        const isClassDay = scheduledDays.length === 0 || scheduledDays.includes(dayName);
+
+        if (isClassDay) {
+          const presets = await getHomeworkPresets(resolvedClassId);
+          if (presets.length > 0) {
+            finalHws = await applyHomeworkPresets(resolvedClassId, sessionDate);
+          }
         }
       }
 
