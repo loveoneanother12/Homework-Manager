@@ -221,15 +221,16 @@ export default function TrashPage() {
                       {hw ? (
                         <>
                           {hw.title}
-                          <span className="block text-sm font-normal text-gray-400 mt-0.5">{date}</span>
+                          <span className="block text-sm font-normal text-gray-400 mt-0.5">
+                            {date}
+                            <span className="mx-1.5 text-gray-300">|</span>
+                            {cls?.class_name ?? '반 미지정'}
+                          </span>
                         </>
                       ) : '숙제 미지정'}
                     </h3>
                     <span className="text-xl opacity-50">🗑</span>
                   </div>
-                  <p className="text-xs text-gray-500 mb-2">
-                    {cls?.class_name ?? '반 미지정'} · {date}
-                  </p>
                   <p className="text-xs text-gray-400 mb-1.5">학생 {studentNames.length}명 · 기록 {records.length}건</p>
                   <div className="flex gap-1 flex-wrap">
                     {studentNames.map((name, i) => (
