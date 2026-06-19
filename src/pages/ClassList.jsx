@@ -92,7 +92,7 @@ export default function ClassList() {
               <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all duration-200 ${todayOnly ? 'left-4' : 'left-0.5'}`} />
             </div>
             <span className={`text-xs font-medium whitespace-nowrap transition-colors ${todayOnly ? 'text-indigo-600' : 'text-gray-500'}`}>
-              {todayOnly ? `오늘(${today}) 수업만` : '전체 반 보기'}
+              오늘 수업만 보기
             </span>
           </button>
         </div>
