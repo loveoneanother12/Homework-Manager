@@ -209,6 +209,15 @@ export async function setAbsence(classId, studentId, sessionDate, value) {
   }
 }
 
+export async function getAbsencesByStudentId(studentId) {
+  const { data, error } = await supabase.from('hw_absences')
+    .select('class_id, session_date')
+    .eq('student_id', studentId)
+    .order('session_date', { ascending: false });
+  if (error) throw error;
+  return data ?? [];
+}
+
 // ── 숙제 (반+날짜별 과제 단위) ────────────────────────────────────────────────
 
 export async function getHomeworks(classId, sessionDate) {

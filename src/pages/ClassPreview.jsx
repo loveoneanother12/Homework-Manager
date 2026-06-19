@@ -351,6 +351,11 @@ export default function ClassPreview() {
           }}
         >
           {sessionDate}&nbsp;&nbsp;|&nbsp;&nbsp;{decoded}&nbsp;&nbsp;|&nbsp;&nbsp;{homework?.title ?? ''}
+          {absentEntries.length > 0 && (
+            <div style={{ fontSize: 9, color: '#9ca3af', marginTop: 3 }}>
+              결석: {absentEntries.map(e => e.student.name).join(', ')}
+            </div>
+          )}
         </div>
         {withRecords.map(entry => (
           <GradingCard

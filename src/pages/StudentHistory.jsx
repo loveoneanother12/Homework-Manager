@@ -3,7 +3,7 @@ import { useParams } from 'react-router-dom';
 import { pct } from '../lib/kpi.js';
 import {
   getStudent, updateStudent, getRecordsByStudent, getClasses, getUnits,
-  getHomeworksByIds,
+  getHomeworksByIds, getAbsencesByStudentId,
   addStudentToClass, removeStudentFromClass, getAllClassMemberships,
 } from '../lib/store.js';
 
@@ -91,9 +91,9 @@ function HScrollCard({ record }) {
 // ─── 숙제 그룹 행 ────────────────────────────────────────────────────────────
 function HomeworkRow({ title, period, unitLabel, records }) {
   return (
-    <div className="mb-3">
+    <div>
       {/* 숙제 헤더 */}
-      <div className="flex items-center gap-2 mb-2 px-1">
+      <div className="flex items-center gap-2 mb-2">
         <span className="text-sm font-medium text-gray-800 truncate">
           {title ?? '숙제 미지정'}
         </span>
@@ -108,7 +108,7 @@ function HomeworkRow({ title, period, unitLabel, records }) {
 
       {/* 횡스크롤 카드 열 */}
       <div
-        className="flex gap-2.5 overflow-x-auto pb-2"
+        className="flex gap-2.5 overflow-x-auto pb-1"
         style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
       >
         {records.map(r => <HScrollCard key={r.id} record={r} />)}
@@ -117,21 +117,56 @@ function HomeworkRow({ title, period, unitLabel, records }) {
   );
 }
 
-// ─── 반 섹션 ─────────────────────────────────────────────────────────────────
-function ClassSection({ cls, hwGroups }) {
-  const total = hwGroups.reduce((s, g) => s + g.records.length, 0);
+// ─── 결석 카드 ───────────────────────────────────────────────────────────────
+function AbsenceCard({ sessionDate }) {
   return (
-    <section className="mb-8">
-      <div className="flex items-center gap-2 mb-4">
-        <h2 className="text-base font-bold text-gray-800">{cls?.class_name ?? '반 미지정'}</h2>
-        {cls?.instructor && <span className="text-xs text-gray-400">{cls.instructor}</span>}
-        <span className="text-xs text-gray-400">{total}건</span>
-        <div className="flex-1 border-b border-gray-100" />
+    <div className="flex-shrink-0 w-44 bg-red-50 rounded-2xl border border-red-100 shadow-sm p-3.5">
+      <p className="text-xs font-semibold text-gray-500 tabular-nums mb-3">{sessionDate}</p>
+      <div className="flex items-center justify-center h-10">
+        <span className="text-xs text-red-400 font-medium">결석으로 미체크</span>
       </div>
-      {hwGroups.map(g => (
-        <HomeworkRow key={g.key} title={g.title} period={g.period} unitLabel={g.unitLabel} records={g.records} />
-      ))}
-    </section>
+    </div>
+  );
+}
+
+// ─── 반 섹션 (흰 카드 블록) ──────────────────────────────────────────────────
+function ClassSection({ cls, hwGroups, absenceDates }) {
+  const recordTotal = hwGroups.reduce((s, g) => s + g.records.length, 0);
+  const total = recordTotal + absenceDates.length;
+  return (
+    <div className="mb-4 bg-white rounded-2xl border border-gray-100 shadow-sm">
+      {/* 반 헤더 */}
+      <div className="flex items-center gap-2 px-5 py-3.5 border-b border-gray-100">
+        <h2 className="text-sm font-bold text-gray-800">{cls?.class_name ?? '반 미지정'}</h2>
+        {cls?.instructor && (
+          <span className="text-xs text-gray-400">{cls.instructor}</span>
+        )}
+        <span className="text-xs text-gray-300 ml-auto">{total}건</span>
+      </div>
+      {/* 숙제 그룹 목록 */}
+      <div className="divide-y divide-gray-50">
+        {hwGroups.map(g => (
+          <div key={g.key} className="px-5 py-4">
+            <HomeworkRow title={g.title} period={g.period} unitLabel={g.unitLabel} records={g.records} />
+          </div>
+        ))}
+        {/* 결석 행 */}
+        {absenceDates.length > 0 && (
+          <div className="px-5 py-4">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-sm font-medium text-red-400">결석</span>
+              <span className="text-xs text-gray-300">{absenceDates.length}회</span>
+            </div>
+            <div
+              className="flex gap-2.5 overflow-x-auto pb-1"
+              style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+            >
+              {absenceDates.map(d => <AbsenceCard key={d} sessionDate={d} />)}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -274,12 +309,13 @@ export default function StudentHistory() {
 
   useEffect(() => {
     (async () => {
-      const [s, records, classes, units, memberships] = await Promise.all([
+      const [s, records, classes, units, memberships, absences] = await Promise.all([
         getStudent(studentId),
         getRecordsByStudent(studentId),
         getClasses(),
         getUnits(),
         getAllClassMemberships(),
+        getAbsencesByStudentId(studentId),
       ]);
 
       setStudent(s);
@@ -291,10 +327,17 @@ export default function StudentHistory() {
 
       // 숙제·단원 조회
       const hwIds = [...new Set(records.map(r => r.homework_id).filter(Boolean))];
-      const [homeworks] = await Promise.all([getHomeworksByIds(hwIds)]);
+      const homeworks = await getHomeworksByIds(hwIds);
 
       const hwById = Object.fromEntries(homeworks.map(h => [h.id, h]));
       const unitsById = Object.fromEntries(units.map(u => [u.id, u]));
+
+      // 반별 결석 날짜 맵
+      const absenceMap = {}; // class_id → Set<session_date>
+      for (const a of absences) {
+        if (!absenceMap[a.class_id]) absenceMap[a.class_id] = [];
+        absenceMap[a.class_id].push(a.session_date);
+      }
 
       // 반별 레코드 맵
       const classRecordMap = {};
@@ -304,18 +347,19 @@ export default function StudentHistory() {
         classRecordMap[ckey].push({ ...r, _unit: unitsById[r.unit_id] ?? null });
       }
 
-      // 반 순서 유지, 각 반 내에서 숙제별 그룹핑
-      const sections = [];
-      const orderedClasses = [
-        ...classes.filter(c => classRecordMap[c.id]),
-      ];
-      if (classRecordMap['__none__']?.length) {
-        orderedClasses.push(null);
-      }
+      // 채점 기록이 있거나 결석이 있는 반 목록
+      const classesWithData = new Set([
+        ...classes.filter(c => classRecordMap[c.id]).map(c => c.id),
+        ...Object.keys(absenceMap),
+      ]);
 
+      const orderedClasses = classes.filter(c => classesWithData.has(c.id));
+      if (classRecordMap['__none__']?.length) orderedClasses.push(null);
+
+      const sections = [];
       for (const cls of orderedClasses) {
         const ckey = cls?.id ?? '__none__';
-        const recs = classRecordMap[ckey];
+        const recs = classRecordMap[ckey] ?? [];
 
         // 숙제별 그룹핑: (title + period) 조합 키
         const hwGroupMap = {};
@@ -336,7 +380,11 @@ export default function StudentHistory() {
           hwGroupMap[gkey].records.push(r);
         }
 
-        sections.push({ cls, hwGroups: Object.values(hwGroupMap) });
+        sections.push({
+          cls,
+          hwGroups: Object.values(hwGroupMap),
+          absenceDates: absenceMap[cls?.id] ?? [],
+        });
       }
 
       setClassSections(sections);
@@ -439,8 +487,8 @@ export default function StudentHistory() {
       )}
 
       {/* 반별 → 숙제별 → 횡스크롤 */}
-      {classSections.map(({ cls, hwGroups }) => (
-        <ClassSection key={cls?.id ?? '__none__'} cls={cls} hwGroups={hwGroups} />
+      {classSections.map(({ cls, hwGroups, absenceDates }) => (
+        <ClassSection key={cls?.id ?? '__none__'} cls={cls} hwGroups={hwGroups} absenceDates={absenceDates} />
       ))}
     </div>
   );
