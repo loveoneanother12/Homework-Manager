@@ -145,6 +145,26 @@ export default function TrashPage() {
     await refresh();
   }
 
+  async function handleRestoreAllRecords({ records, cls, hw }) {
+    if (cls?.deleted_at) {
+      alert(`'${cls.class_name}' 반이 휴지통에 있어 복원이 불가능합니다.\n먼저 반을 복원해주세요.`);
+      return;
+    }
+    if (hw?.deleted_at) {
+      alert(`'${hw.title}' 숙제가 휴지통에 있어 복원이 불가능합니다.\n먼저 숙제를 복원해주세요.`);
+      return;
+    }
+    let skipped = 0;
+    for (const record of records) {
+      const stu = studentById[record.student_id];
+      if (stu?.deleted_at) { skipped++; continue; }
+      if (await recordConflictExists(record)) { skipped++; continue; }
+      await restoreRecord(record.id);
+    }
+    if (skipped > 0) alert(`${records.length - skipped}건 복원 완료. ${skipped}건은 충돌 또는 학생 삭제로 건너뛰었습니다.`);
+    await refresh();
+  }
+
   async function handleRestoreHomework(hw) {
     const cls = classById[hw.class_id];
     if (cls?.deleted_at) {
@@ -240,21 +260,30 @@ export default function TrashPage() {
                   {cls?.deleted_at && (
                     <p className="text-xs text-amber-600 mt-2">이 반도 휴지통에 있음</p>
                   )}
-                  {/* 숙제 자체가 휴지통에 있으면 숙제 단위 복원/완전 삭제 */}
-                  {hw?.deleted_at && (
-                    <div className="flex justify-end gap-1.5 mt-3" onClick={e => e.stopPropagation()}>
+                  <div className="flex justify-end gap-1.5 mt-3" onClick={e => e.stopPropagation()}>
+                    {hw?.deleted_at ? (
+                      /* 숙제 자체가 휴지통에 있으면 숙제 단위 복원/완전 삭제 */
+                      <>
+                        <button
+                          onClick={() => handleRestoreHomework(hw)}
+                          className="px-3 py-1.5 text-xs text-emerald-700 bg-emerald-50 rounded hover:bg-emerald-100 transition-colors font-medium">
+                          복원
+                        </button>
+                        <button
+                          onClick={() => handlePurgeHomework(hw)}
+                          className="px-3 py-1.5 text-xs text-red-600 bg-red-50 rounded hover:bg-red-100 transition-colors font-medium">
+                          완전 삭제
+                        </button>
+                      </>
+                    ) : (
+                      /* 채점 기록만 휴지통에 있는 경우 — 전체 복원 */
                       <button
-                        onClick={() => handleRestoreHomework(hw)}
+                        onClick={() => handleRestoreAllRecords({ records, cls, hw })}
                         className="px-3 py-1.5 text-xs text-emerald-700 bg-emerald-50 rounded hover:bg-emerald-100 transition-colors font-medium">
-                        복원
+                        전체 복원
                       </button>
-                      <button
-                        onClick={() => handlePurgeHomework(hw)}
-                        className="px-3 py-1.5 text-xs text-red-600 bg-red-50 rounded hover:bg-red-100 transition-colors font-medium">
-                        완전 삭제
-                      </button>
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </div>
               );
             })}
