@@ -207,7 +207,7 @@ export default function ClassDetailPage() {
   const days = cls.days_of_week?.split(',').filter(Boolean) ?? [];
 
   return (
-    <div className="max-w-xl mx-auto space-y-4 pb-12">
+    <div className="space-y-4 pb-12">
 
       {/* 뒤로 */}
       <button
@@ -216,11 +216,11 @@ export default function ClassDetailPage() {
         <span className="text-base">←</span> 반 관리
       </button>
 
-      {/* 헤더 카드 */}
+      {/* 헤더 카드 — 전체 너비 */}
       {editMode ? (
         <form onSubmit={handleSaveClass} className="bg-white rounded-3xl shadow-sm p-6 space-y-5">
           <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest">반 편집</p>
-          <div className="space-y-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-medium text-gray-500 mb-1.5">반 이름</label>
               <input
@@ -237,14 +237,14 @@ export default function ClassDetailPage() {
                 onChange={e => setEditForm(f => ({ ...f, instructor: e.target.value }))}
                 placeholder="예: 김수학" />
             </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-500 mb-2">수업 요일</label>
-              <DayToggle value={editForm.days_of_week} onChange={v => setEditForm(f => ({ ...f, days_of_week: v }))} />
-            </div>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-2">수업 요일</label>
+            <DayToggle value={editForm.days_of_week} onChange={v => setEditForm(f => ({ ...f, days_of_week: v }))} />
           </div>
           <div className="flex gap-2 pt-1">
             <button type="submit" disabled={saving || !editForm.class_name.trim()}
-              className="flex-1 py-3 bg-indigo-600 text-white rounded-2xl text-sm font-bold hover:bg-indigo-700 disabled:opacity-40 transition-colors">
+              className="px-8 py-3 bg-indigo-600 text-white rounded-2xl text-sm font-bold hover:bg-indigo-700 disabled:opacity-40 transition-colors">
               {saving ? '저장 중…' : '저장'}
             </button>
             <button type="button"
@@ -255,10 +255,10 @@ export default function ClassDetailPage() {
           </div>
         </form>
       ) : (
-        <div className="bg-white rounded-3xl shadow-sm p-6 space-y-5">
-          {/* 반 이름 + 메타 */}
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900 mb-2">{cls.class_name}</h1>
+        <div className="bg-white rounded-3xl shadow-sm p-6 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-5">
+          {/* 반 정보 */}
+          <div className="space-y-2">
+            <h1 className="text-2xl font-bold text-gray-900">{cls.class_name}</h1>
             <div className="flex items-center gap-2 flex-wrap">
               {cls.instructor && (
                 <span className="text-xs font-semibold text-gray-500 bg-gray-100 px-3 py-1 rounded-full">
@@ -274,119 +274,124 @@ export default function ClassDetailPage() {
             </div>
           </div>
 
-          {/* 오늘 숙제 CTA */}
-          <button
-            onClick={() => navigate(`/class/${encodeURIComponent(cls.class_name)}?date=${today()}`)}
-            className="w-full py-3.5 bg-indigo-600 text-white rounded-2xl text-sm font-bold hover:bg-indigo-700 active:scale-[0.98] transition-all">
-            오늘 숙제 보기 →
-          </button>
-
-          {/* 편집 / 삭제 */}
-          <div className="flex gap-3 pt-1">
+          {/* CTA + 편집·삭제 */}
+          <div className="flex flex-col gap-2 lg:items-end flex-shrink-0">
             <button
-              onClick={() => setEditMode(true)}
-              className="text-xs font-semibold text-gray-400 hover:text-gray-600 transition-colors">
-              편집
+              onClick={() => navigate(`/class/${encodeURIComponent(cls.class_name)}?date=${today()}`)}
+              className="px-6 py-3 bg-indigo-600 text-white rounded-2xl text-sm font-bold hover:bg-indigo-700 active:scale-[0.98] transition-all whitespace-nowrap">
+              오늘 숙제 보기 →
             </button>
-            <span className="text-gray-200">|</span>
-            <button
-              onClick={handleDeleteClass}
-              className="text-xs font-semibold text-gray-400 hover:text-red-500 transition-colors">
-              반 삭제
-            </button>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setEditMode(true)}
+                className="text-xs font-semibold text-gray-400 hover:text-gray-600 transition-colors">
+                편집
+              </button>
+              <span className="text-gray-200">|</span>
+              <button
+                onClick={handleDeleteClass}
+                className="text-xs font-semibold text-gray-400 hover:text-red-500 transition-colors">
+                반 삭제
+              </button>
+            </div>
           </div>
         </div>
       )}
 
-      {/* 구성원 카드 */}
-      <div className="bg-white rounded-3xl shadow-sm p-6 space-y-4">
-        <div className="flex items-center justify-between">
-          <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest">구성원</p>
-          <span className="text-xs font-bold text-indigo-600">{classStudents.length}명</span>
-        </div>
+      {/* 2단 그리드 */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
 
-        {classStudents.length === 0 ? (
-          <p className="text-sm text-gray-400">이 반에 배정된 학생이 없습니다.</p>
-        ) : (
-          <div className="flex flex-wrap gap-2">
-            {classStudents.map(s => (
-              <div key={s.id}
-                className="flex items-center gap-1.5 bg-gray-50 rounded-full pl-3.5 pr-2 py-1.5">
-                <span className="text-sm font-semibold text-gray-800">{s.name}</span>
-                {s.grade && <span className="text-xs text-gray-400">{s.grade}</span>}
-                <button
-                  onClick={() => handleRemoveFromClass(s)}
-                  className="w-5 h-5 flex items-center justify-center rounded-full text-gray-300 hover:text-red-400 hover:bg-red-50 transition-all text-xs">
-                  ✕
-                </button>
-              </div>
-            ))}
+        {/* 구성원 카드 */}
+        <div className="bg-white rounded-3xl shadow-sm p-6 space-y-4">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest">구성원</p>
+            <span className="text-xs font-bold text-indigo-600">{classStudents.length}명</span>
           </div>
-        )}
 
-        {/* 학생 추가 검색 */}
-        <div className="pt-1">
-          <input
-            type="text"
-            value={memberSearch}
-            onChange={e => setMemberSearch(e.target.value)}
-            placeholder="학생 이름으로 검색해서 추가…"
-            className="w-full bg-gray-50 rounded-xl px-4 py-2.5 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-indigo-500 transition placeholder-gray-300"
-          />
-          {searchTrimmed && (
-            <div className="mt-2 space-y-1">
-              {studentsToAdd.length === 0 ? (
-                <p className="text-xs text-gray-400 px-1">
-                  {allStudents.some(s => !inClass.has(s.id) && s.name.includes(searchTrimmed))
-                    ? '검색 결과 없음'
-                    : `'${searchTrimmed}'에 해당하는 학생이 없거나 이미 이 반에 있습니다.`}
-                </p>
-              ) : (
-                studentsToAdd.map(s => (
-                  <div key={s.id} className="flex items-center gap-3 bg-gray-50 rounded-2xl px-4 py-3">
-                    <span className="text-sm font-semibold text-gray-800">{s.name}</span>
-                    {s.grade && (
-                      <span className="text-xs font-medium text-gray-400 bg-white border border-gray-200 px-2 py-0.5 rounded-full">
-                        {s.grade}
-                      </span>
-                    )}
-                    <span className="flex-1" />
-                    <button
-                      onClick={() => handleAddToClass(s)}
-                      className="px-3.5 py-1.5 bg-indigo-600 text-white rounded-full text-xs font-bold hover:bg-indigo-700 transition-colors">
-                      + 추가
-                    </button>
-                  </div>
-                ))
-              )}
+          {classStudents.length === 0 ? (
+            <p className="text-sm text-gray-400">이 반에 배정된 학생이 없습니다.</p>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {classStudents.map(s => (
+                <div key={s.id}
+                  className="flex items-center gap-1.5 bg-gray-50 rounded-full pl-3.5 pr-2 py-1.5">
+                  <span className="text-sm font-semibold text-gray-800">{s.name}</span>
+                  {s.grade && <span className="text-xs text-gray-400">{s.grade}</span>}
+                  <button
+                    onClick={() => handleRemoveFromClass(s)}
+                    className="w-5 h-5 flex items-center justify-center rounded-full text-gray-300 hover:text-red-400 hover:bg-red-50 transition-all text-xs">
+                    ✕
+                  </button>
+                </div>
+              ))}
             </div>
           )}
-        </div>
-      </div>
 
-      {/* 숙제 프리셋 카드 */}
-      <div className="bg-white rounded-3xl shadow-sm p-6 space-y-4">
-        <div>
-          <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-1">숙제 프리셋</p>
-          <p className="text-xs text-gray-400">숙제가 없는 날 진입하면 자동으로 생성됩니다.</p>
-        </div>
-        <div className="space-y-2">
-          {presets.map(preset => (
-            <PresetRow
-              key={preset.id}
-              preset={preset}
-              onUpdate={handleUpdatePreset}
-              onDelete={handleDeletePreset}
+          {/* 학생 추가 검색 */}
+          <div className="pt-1">
+            <input
+              type="text"
+              value={memberSearch}
+              onChange={e => setMemberSearch(e.target.value)}
+              placeholder="학생 이름으로 검색해서 추가…"
+              className="w-full bg-gray-50 rounded-xl px-4 py-2.5 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-indigo-500 transition placeholder-gray-300"
             />
-          ))}
-          {presets.length < 4 && (
-            <button
-              onClick={handleAddPreset}
-              className="w-full py-2.5 rounded-2xl border-2 border-dashed border-gray-200 text-xs font-semibold text-gray-400 hover:border-indigo-300 hover:text-indigo-500 transition-all">
-              + 프리셋 추가
-            </button>
-          )}
+            {searchTrimmed && (
+              <div className="mt-2 space-y-1">
+                {studentsToAdd.length === 0 ? (
+                  <p className="text-xs text-gray-400 px-1">
+                    {allStudents.some(s => !inClass.has(s.id) && s.name.includes(searchTrimmed))
+                      ? '검색 결과 없음'
+                      : `'${searchTrimmed}'에 해당하는 학생이 없거나 이미 이 반에 있습니다.`}
+                  </p>
+                ) : (
+                  studentsToAdd.map(s => (
+                    <div key={s.id} className="flex items-center gap-3 bg-gray-50 rounded-2xl px-4 py-3">
+                      <span className="text-sm font-semibold text-gray-800">{s.name}</span>
+                      {s.grade && (
+                        <span className="text-xs font-medium text-gray-400 bg-white border border-gray-200 px-2 py-0.5 rounded-full">
+                          {s.grade}
+                        </span>
+                      )}
+                      <span className="flex-1" />
+                      <button
+                        onClick={() => handleAddToClass(s)}
+                        className="px-3.5 py-1.5 bg-indigo-600 text-white rounded-full text-xs font-bold hover:bg-indigo-700 transition-colors">
+                        + 추가
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
         </div>
+
+        {/* 숙제 프리셋 카드 */}
+        <div className="bg-white rounded-3xl shadow-sm p-6 space-y-4">
+          <div>
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-1">숙제 프리셋</p>
+            <p className="text-xs text-gray-400">숙제가 없는 날 진입하면 자동으로 생성됩니다.</p>
+          </div>
+          <div className="space-y-2">
+            {presets.map(preset => (
+              <PresetRow
+                key={preset.id}
+                preset={preset}
+                onUpdate={handleUpdatePreset}
+                onDelete={handleDeletePreset}
+              />
+            ))}
+            {presets.length < 4 && (
+              <button
+                onClick={handleAddPreset}
+                className="w-full py-2.5 rounded-2xl border-2 border-dashed border-gray-200 text-xs font-semibold text-gray-400 hover:border-indigo-300 hover:text-indigo-500 transition-all">
+                + 프리셋 추가
+              </button>
+            )}
+          </div>
+        </div>
+
       </div>
 
       {/* 반 삭제 확인 모달 */}
