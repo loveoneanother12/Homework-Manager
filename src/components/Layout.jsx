@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link, useLocation } from 'react-router-dom';
+import UserManual from './UserManual.jsx';
 
 const NAV_PRIMARY = [
   { to: '/',       label: '채점',       icon: '📝' },
@@ -23,6 +24,7 @@ const NAV_ALL = [
 export default function Layout({ children }) {
   const { pathname } = useLocation();
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [manualOpen, setManualOpen] = useState(false);
   const drawerRef = useRef(null);
 
   // 외부 클릭 시 드로어 닫기
@@ -52,7 +54,7 @@ export default function Layout({ children }) {
           </Link>
 
           {/* PC 내비게이션 */}
-          <nav className="hidden md:flex gap-1">
+          <nav className="hidden md:flex gap-1 items-center">
             {NAV_ALL.map(({ to, label, muted }) => (
               <Link
                 key={to}
@@ -66,6 +68,13 @@ export default function Layout({ children }) {
                 {label}
               </Link>
             ))}
+            <button
+              onClick={() => setManualOpen(true)}
+              className="px-3 py-1.5 rounded text-sm font-medium transition-colors text-gray-500 hover:bg-gray-100 hover:text-gray-700 flex items-center gap-1"
+              title="사용설명서"
+            >
+              📖
+            </button>
           </nav>
 
           {/* 모바일 햄버거 버튼 */}
@@ -106,6 +115,15 @@ export default function Layout({ children }) {
               {label}
             </Link>
           ))}
+          <div className="border-t border-gray-100 mt-1 pt-1">
+            <button
+              onClick={() => { setDrawerOpen(false); setManualOpen(true); }}
+              className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-colors w-full text-left text-gray-700 hover:bg-gray-50"
+            >
+              <span className="text-base">📖</span>
+              사용설명서
+            </button>
+          </div>
         </div>
       </div>
 
@@ -113,6 +131,9 @@ export default function Layout({ children }) {
       <main className="flex-1 max-w-5xl mx-auto w-full px-4 py-6 pb-24 md:pb-6">
         {children}
       </main>
+
+      {/* 사용설명서 모달 */}
+      {manualOpen && <UserManual onClose={() => setManualOpen(false)} />}
 
       {/* 모바일 하단 탭바 */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 z-20 bg-white border-t border-gray-200 flex">
