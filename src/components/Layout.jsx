@@ -70,10 +70,10 @@ export default function Layout({ children }) {
             ))}
             <button
               onClick={() => setManualOpen(true)}
-              className="px-3 py-1.5 rounded text-sm font-medium transition-colors text-gray-500 hover:bg-gray-100 hover:text-gray-700 flex items-center gap-1"
-              title="사용설명서"
+              className="px-3 py-1.5 rounded text-sm font-medium transition-colors text-gray-500 hover:bg-gray-100 hover:text-gray-700 flex items-center gap-1.5"
             >
-              📖
+              <span>📖</span>
+              사용설명서
             </button>
           </nav>
 
